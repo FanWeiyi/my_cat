@@ -1,5 +1,3 @@
-using System.Windows;
-
 namespace MyCat.WindowsShell;
 
 internal static class Program
@@ -7,12 +5,11 @@ internal static class Program
     [STAThread]
     public static void Main()
     {
-        var app = new Application
+        var app = new System.Windows.Application
         {
-            ShutdownMode = ShutdownMode.OnMainWindowClose
+            ShutdownMode = System.Windows.ShutdownMode.OnMainWindowClose
         };
 
         app.Run(new DesktopCatWindow());
     }
 }
-

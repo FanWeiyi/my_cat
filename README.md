@@ -38,14 +38,18 @@ building. A Windows Desktop runtime alone is not enough for development.
 Build and run the shell:
 
 ```powershell
-dotnet build .\MyCat.sln
-dotnet run --project .\windows-shell\MyCat.WindowsShell.csproj
+$env:DOTNET_CLI_HOME = "$PWD\.dotnet-home"
+$env:APPDATA = "$PWD\.nuget-home"
+dotnet build .\MyCat.sln --configfile .\NuGet.Config
+dotnet run --project .\windows-shell\MyCat.WindowsShell.csproj --no-restore
 ```
 
 Run the core behavior checks:
 
 ```powershell
-dotnet run --project .\tests\MyCat.CatCore.Tests\MyCat.CatCore.Tests.csproj
+$env:DOTNET_CLI_HOME = "$PWD\.dotnet-home"
+$env:APPDATA = "$PWD\.nuget-home"
+dotnet run --project .\tests\MyCat.CatCore.Tests\MyCat.CatCore.Tests.csproj --configfile .\NuGet.Config
 ```
 
 ## Manual M0-M1 check
@@ -56,4 +60,3 @@ dotnet run --project .\tests\MyCat.CatCore.Tests\MyCat.CatCore.Tests.csproj
 4. Confirm walking stays inside the main screen work area.
 5. Open the tray menu and choose `Exit`.
 6. Leave a run open for 30 minutes before calling M0 stable.
-

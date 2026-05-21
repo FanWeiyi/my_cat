@@ -1,6 +1,10 @@
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
+using Brush = System.Windows.Media.Brush;
+using Cursors = System.Windows.Input.Cursors;
+using Pen = System.Windows.Media.Pen;
+using Point = System.Windows.Point;
 
 namespace MyCat.WindowsShell;
 

@@ -4,6 +4,7 @@ using System.Windows.Media;
 using System.Windows.Threading;
 using MyCat.CatAssets;
 using MyCat.CatCore;
+using Brushes = System.Windows.Media.Brushes;
 
 namespace MyCat.WindowsShell;
 
@@ -119,4 +120,3 @@ internal sealed class DesktopCatWindow : Window
         Left = candidate;
     }
 }
-
