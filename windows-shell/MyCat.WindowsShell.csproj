@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\cat-assets\MyCat.CatAssets.csproj" />
+    <ProjectReference Include="..\cat-core\MyCat.CatCore.csproj" />
+  </ItemGroup>
+</Project>
+
