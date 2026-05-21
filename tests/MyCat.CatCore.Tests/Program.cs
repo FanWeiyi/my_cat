@@ -22,6 +22,9 @@ internal sealed class CatBehaviorChecks
         RestResumesAfterPetting();
         ObservationCapturesTimeBucket();
         EventStoreSurvivesReload();
+        RestObservationsBiasRestWeight();
+        LearningFeedbackOnlyAppearsOnce();
+        QuietModeSuppressesWalking();
         Console.WriteLine("Cat core behavior checks passed.");
     }
 
@@ -36,7 +39,7 @@ internal sealed class CatBehaviorChecks
 
     private void PettingInterruptsWalk()
     {
-        var controller = new CatBehaviorController(_fastOptions, () => 0.95);
+        var controller = new CatBehaviorController(_fastOptions, () => 0.45);
         controller.Start(_start);
         var walk = controller.Advance(_start + TimeSpan.FromSeconds(1));
         var pet = controller.Pet(_start + TimeSpan.FromSeconds(1.1));
@@ -48,7 +51,7 @@ internal sealed class CatBehaviorChecks
 
     private void WalkSettlesBackToIdle()
     {
-        var controller = new CatBehaviorController(_fastOptions, () => 0.95);
+        var controller = new CatBehaviorController(_fastOptions, () => 0.45);
         controller.Start(_start);
         controller.Advance(_start + TimeSpan.FromSeconds(1));
         var transition = controller.Advance(_start + TimeSpan.FromSeconds(4));
@@ -58,7 +61,7 @@ internal sealed class CatBehaviorChecks
 
     private void RestResumesAfterPetting()
     {
-        var controller = new CatBehaviorController(_fastOptions, () => 0.5);
+        var controller = new CatBehaviorController(_fastOptions, () => 0.2);
         controller.Start(_start);
         controller.Advance(_start + TimeSpan.FromSeconds(1));
         controller.Pet(_start + TimeSpan.FromSeconds(1.1));
@@ -101,6 +104,56 @@ internal sealed class CatBehaviorChecks
                 File.Delete(path);
             }
         }
+    }
+
+    private static void RestObservationsBiasRestWeight()
+    {
+        var events = Enumerable.Range(0, 4)
+            .Select(index => CatObservationEvent.Create(
+                CatEventType.Rest,
+                new DateTimeOffset(2026, 5, 21, 14, index, 0, TimeSpan.FromHours(8)),
+                CatEventSource.DesktopCatMenu));
+
+        var profile = CatHabitProfile.FromEvents(events);
+        Expect(
+            profile.For(CatTimeBucket.Afternoon).RestWeight > CatHabitWeights.Default.RestWeight,
+            "Repeated rest observations should increase rest weight in that bucket.");
+    }
+
+    private static void LearningFeedbackOnlyAppearsOnce()
+    {
+        var events = Enumerable.Range(0, 3)
+            .Select(index => CatObservationEvent.Create(
+                CatEventType.Activity,
+                new DateTimeOffset(2026, 5, 21, 20, index, 0, TimeSpan.FromHours(8)),
+                CatEventSource.TrayMenu))
+            .ToArray();
+        var profile = CatHabitProfile.FromEvents(events);
+        var tracker = new CatLearningFeedbackTracker();
+
+        var first = tracker.TryCreate(profile, events[^1]);
+        var second = tracker.TryCreate(profile, events[^1]);
+
+        Expect(first is not null, "The third matching observation should create learning feedback.");
+        Expect(second is null, "A learning feedback key should not repeat.");
+    }
+
+    private void QuietModeSuppressesWalking()
+    {
+        var controller = new CatBehaviorController(_fastOptions, () => 0.55)
+        {
+            HabitProfile = CatHabitProfile.FromEvents(Enumerable.Range(0, 8)
+                .Select(index => CatObservationEvent.Create(
+                    CatEventType.Activity,
+                    new DateTimeOffset(2026, 5, 21, 20, index, 0, TimeSpan.FromHours(8)),
+                    CatEventSource.TrayMenu)))
+        };
+
+        controller.Start(_start);
+        controller.SetQuietMode(true, _start);
+        var transition = controller.Advance(_start + TimeSpan.FromSeconds(1));
+
+        Expect(transition?.State != CatState.Walk, "Quiet mode should suppress proactive walking.");
     }
 
     private static void Expect(bool condition, string message)

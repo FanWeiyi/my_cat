@@ -14,9 +14,25 @@ public sealed class CatBehaviorController
 
     public CatActionTransition? Current { get; private set; }
 
+    public CatHabitProfile HabitProfile { get; set; } = CatHabitProfile.FromEvents(Array.Empty<CatObservationEvent>());
+
+    public bool QuietMode { get; private set; }
+
     public CatActionTransition Start(DateTimeOffset now)
     {
         return SetState(CatState.Idle, now);
+    }
+
+    public CatActionTransition SetQuietMode(bool enabled, DateTimeOffset now)
+    {
+        QuietMode = enabled;
+
+        if (enabled && Current?.State is CatState.Walk)
+        {
+            return SetState(CatState.Idle, now);
+        }
+
+        return Current ?? Start(now);
     }
 
     public CatActionTransition Pet(DateTimeOffset now)
@@ -44,25 +60,32 @@ public sealed class CatBehaviorController
         {
             CatState.PetReact => SetState(_resumeAfterPet, now),
             CatState.Walk => SetState(CatState.Idle, now),
-            _ => SetState(ChooseAutomaticState(), now)
+            _ => SetState(ChooseAutomaticState(now), now)
         };
     }
 
-    private CatState ChooseAutomaticState()
+    private CatState ChooseAutomaticState(DateTimeOffset now)
     {
+        var weights = HabitProfile.For(CatTimeBucketResolver.Resolve(now));
+        var activityWeight = QuietMode
+            ? weights.ActivityWeight * 0.08
+            : weights.ActivityWeight;
+        var total = weights.RestWeight + activityWeight + weights.AccompanyWeight;
+        var restEdge = weights.RestWeight / total;
+        var activityEdge = restEdge + (activityWeight / total);
         var sample = _sample();
 
-        if (sample < 0.4)
-        {
-            return CatState.Idle;
-        }
-
-        if (sample < 0.75)
+        if (sample < restEdge)
         {
             return CatState.Rest;
         }
 
-        return CatState.Walk;
+        if (sample < activityEdge)
+        {
+            return CatState.Walk;
+        }
+
+        return CatState.Idle;
     }
 
     private CatActionTransition SetState(CatState state, DateTimeOffset now)

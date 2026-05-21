@@ -19,12 +19,15 @@ internal sealed class DesktopCatWindow : Window
     private readonly CatBehaviorController _behavior = new();
     private readonly ContextMenu _catMenu;
     private readonly JsonCatEventStore _eventStore = new(GetEventStorePath());
+    private readonly JsonCatLearningStateStore _learningStateStore = new(GetLearningStateStorePath());
     private readonly Border _feedbackBubble;
     private readonly TextBlock _feedbackText = new();
     private readonly CatSprite _sprite = new();
     private readonly DispatcherTimer _feedbackTimer;
     private readonly DispatcherTimer _tickTimer;
     private readonly TrayIconHost _trayIcon;
+    private CatLearningFeedbackTracker _learningFeedback = new();
+    private MenuItem? _quietModeMenuItem;
     private int _walkDirection = -1;
 
     public DesktopCatWindow()
@@ -46,6 +49,7 @@ internal sealed class DesktopCatWindow : Window
         Content = CreateCatSurface();
         _trayIcon = new TrayIconHost(
             eventType => Dispatcher.BeginInvoke(() => Record(eventType, CatEventSource.TrayMenu)),
+            enabled => Dispatcher.BeginInvoke(() => SetQuietMode(enabled)),
             () => Dispatcher.Invoke(Close));
         _feedbackTimer = new DispatcherTimer(DispatcherPriority.Background)
         {
@@ -65,6 +69,7 @@ internal sealed class DesktopCatWindow : Window
 
     private void HandleLoaded(object sender, RoutedEventArgs e)
     {
+        LoadLearningState();
         PositionNearWorkArea();
         Apply(_behavior.Start(DateTimeOffset.Now));
         _tickTimer.Start();
@@ -145,6 +150,8 @@ internal sealed class DesktopCatWindow : Window
         tellMenu.Items.Add(MenuItem("我家猫在玩", () => Record(CatEventType.Activity, CatEventSource.DesktopCatMenu)));
         tellMenu.Items.Add(MenuItem("我家猫在陪我", () => Record(CatEventType.Accompany, CatEventSource.DesktopCatMenu)));
         menu.Items.Add(tellMenu);
+        _quietModeMenuItem = MenuItem("安静一会儿", () => SetQuietMode(!_behavior.QuietMode));
+        menu.Items.Add(_quietModeMenuItem);
 
         return menu;
     }
@@ -190,6 +197,16 @@ internal sealed class DesktopCatWindow : Window
         try
         {
             _eventStore.Append(CatObservationEvent.Create(eventType, DateTimeOffset.Now, source));
+            var latest = _eventStore.ReadAll().Last();
+            RefreshHabitProfile();
+            var feedback = _learningFeedback.TryCreate(_behavior.HabitProfile, latest);
+            if (feedback is not null)
+            {
+                SaveLearningState();
+                ShowFeedback(feedback.Text);
+                return;
+            }
+
             ShowFeedback("已记下");
         }
         catch (IOException)
@@ -210,10 +227,43 @@ internal sealed class DesktopCatWindow : Window
         _feedbackTimer.Start();
     }
 
+    private void LoadLearningState()
+    {
+        RefreshHabitProfile();
+        _learningFeedback = new CatLearningFeedbackTracker(_learningStateStore.Read().SeenFeedbackKeys);
+    }
+
+    private void RefreshHabitProfile()
+    {
+        _behavior.HabitProfile = CatHabitProfile.FromEvents(_eventStore.ReadAll());
+    }
+
+    private void SaveLearningState()
+    {
+        _learningStateStore.Write(new CatLearningState(_learningFeedback.SeenKeys.OrderBy(key => key).ToArray()));
+    }
+
+    private void SetQuietMode(bool enabled)
+    {
+        Apply(_behavior.SetQuietMode(enabled, DateTimeOffset.Now));
+        if (_quietModeMenuItem is not null)
+        {
+            _quietModeMenuItem.Header = enabled ? "恢复陪伴" : "安静一会儿";
+        }
+
+        ShowFeedback(enabled ? "安静陪着你" : "回来陪你");
+    }
+
     private static string GetEventStorePath()
     {
         var localData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
         return Path.Combine(localData, "MyCat", "events.json");
+    }
+
+    private static string GetLearningStateStorePath()
+    {
+        var localData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        return Path.Combine(localData, "MyCat", "learning-state.json");
     }
 
     private void PositionNearWorkArea()
