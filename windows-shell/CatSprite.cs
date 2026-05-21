@@ -21,7 +21,7 @@ internal sealed class CatSprite : FrameworkElement
     public CatSprite()
     {
         Cursor = Cursors.Hand;
-        ToolTip = "Pet the cat";
+        ToolTip = "点点小猫";
         Width = 184;
         Height = 168;
         SnapsToDevicePixels = true;

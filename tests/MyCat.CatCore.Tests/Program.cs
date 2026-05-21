@@ -20,6 +20,8 @@ internal sealed class CatBehaviorChecks
         PettingInterruptsWalk();
         WalkSettlesBackToIdle();
         RestResumesAfterPetting();
+        ObservationCapturesTimeBucket();
+        EventStoreSurvivesReload();
         Console.WriteLine("Cat core behavior checks passed.");
     }
 
@@ -63,6 +65,42 @@ internal sealed class CatBehaviorChecks
         var transition = controller.Advance(_start + TimeSpan.FromSeconds(2.1));
 
         Expect(transition?.State == CatState.Rest, "Petting a resting cat should resume rest.");
+    }
+
+    private static void ObservationCapturesTimeBucket()
+    {
+        var catEvent = CatObservationEvent.Create(
+            CatEventType.Activity,
+            new DateTimeOffset(2026, 5, 21, 19, 30, 0, TimeSpan.FromHours(8)),
+            CatEventSource.TrayMenu);
+
+        Expect(catEvent.TimeBucket == CatTimeBucket.Evening, "An evening observation should use the evening bucket.");
+        Expect(catEvent.Source == CatEventSource.TrayMenu, "An observation should keep its entry source.");
+    }
+
+    private static void EventStoreSurvivesReload()
+    {
+        var path = Path.Combine(AppContext.BaseDirectory, $"events-{Guid.NewGuid():N}.json");
+
+        try
+        {
+            var store = new JsonCatEventStore(path);
+            store.Append(CatObservationEvent.Create(
+                CatEventType.Rest,
+                new DateTimeOffset(2026, 5, 21, 14, 0, 0, TimeSpan.FromHours(8)),
+                CatEventSource.DesktopCatMenu));
+
+            var reloaded = new JsonCatEventStore(path).ReadAll();
+            Expect(reloaded.Count == 1, "A saved event should survive a store reload.");
+            Expect(reloaded[0].TimeBucket == CatTimeBucket.Afternoon, "Reloaded event data should keep its time bucket.");
+        }
+        finally
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
     }
 
     private static void Expect(bool condition, string message)
