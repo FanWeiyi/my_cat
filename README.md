@@ -1,64 +1,64 @@
 # My Cat
 
-`My Cat` is a Windows desktop cat prototype. The current prototype keeps the
-scope deliberately small: one transparent desktop cat that can sit, sleep,
-walk slowly, react to a click, remember three real-cat observations, and exit
-from the system tray.
+`My Cat` 是一个 Windows 桌面小猫原型。当前版本刻意保持范围收敛：
+桌面上只有一只透明背景的小猫，它会坐着、睡觉、慢慢走动、回应点击，
+能记下三类真实猫咪观察记录，也能从系统托盘退出。
 
-## Project layout
+## 项目结构
 
 ```text
-cat-core        Behavior state and action selection
-cat-assets      Replaceable placeholder action clips and frame metadata
-windows-shell   WPF transparent desktop shell and tray integration
-tests           Lightweight behavior checks with no test package dependency
+cat-core        行为状态、事件模型和轻学习规则
+cat-assets      可替换的占位动作片段与帧元数据
+windows-shell   WPF 透明桌面窗口、托盘和交互入口
+tests           不依赖外部测试包的核心行为检查
 ```
 
-## Current prototype scope
+## 当前原型范围
 
-Included in M0-M4:
+本地已覆盖 `M0-M4`：
 
-- Transparent borderless WPF window sized around one desktop cat.
-- Click response and a small cat menu that interrupts automatic behavior.
-- Automatic sitting, sleeping, and slow walking loops.
-- System tray observation shortcuts and exit action.
-- Local JSON persistence for sleeping, playing, and accompanying observations.
-- Time-bucket habit weights that bias later rest, walk, and idle choices.
-- One-time learning feedback after repeated matching observations.
-- Quiet mode from the cat menu or tray menu.
-- Placeholder cat frames wired through stable action IDs:
-  `idle_sit`, `rest_sleep`, `walk_slow`, `wake_stretch`, `edge_stop`,
-  and `pet_react`.
+- 透明、无边框、围绕单只小猫尺寸收紧的 WPF 桌面窗口。
+- 点击小猫后的回应动作和轻菜单。
+- 坐着、睡觉、慢走等自动行为循环。
+- 托盘中的记录入口、安静模式和退出入口。
+- 对“睡觉 / 玩 / 陪我”三类观察记录做本地 JSON 持久化。
+- 基于时间桶的轻量习惯权重，影响后续休息、走动和陪伴倾向。
+- 同类记录累计后的一次性学习反馈。
+- 小猫菜单和托盘都可切换安静模式。
+- 已接入 6 个稳定动作 ID：
+  `idle_sit`、`rest_sleep`、`walk_slow`、`wake_stretch`、`edge_stop`、
+  `pet_react`。
 
-Deferred until later milestones:
+后续里程碑暂未做：
 
-- Multi-cat support and formal animation assets.
+- 多猫支持。
+- 正式动画资产与更高质量视觉稿。
 
-Recorded observations are saved at:
+观察记录保存位置：
 
 ```text
 %LOCALAPPDATA%\MyCat\events.json
 ```
 
-Learning feedback keys are saved separately at:
+学习反馈状态保存位置：
 
 ```text
 %LOCALAPPDATA%\MyCat\learning-state.json
 ```
 
-Playtest materials:
+## 文档入口
 
-- [Development progress report](docs/development-progress-report.md)
-- [Playtest guide](docs/playtest-guide.md)
-- [Feedback form](docs/playtest-feedback.md)
-- [Release checklist](docs/playtest-release-checklist.md)
+- [开发进度报告](docs/development-progress-report.md)
+- [试玩说明](docs/playtest-guide.md)
+- [反馈表](docs/playtest-feedback.md)
+- [试玩发布检查清单](docs/playtest-release-checklist.md)
 
-## Local development
+## 本地开发
 
-The prototype targets .NET 9 for Windows WPF. Install a .NET 9 SDK before
-building. A Windows Desktop runtime alone is not enough for development.
+原型使用 `.NET 9` 和 Windows WPF。构建前需要安装 `.NET 9 SDK`；
+仅安装 Windows Desktop Runtime 不足以开发和构建。
 
-Build and run the shell:
+构建并运行桌面壳：
 
 ```powershell
 $env:DOTNET_CLI_HOME = "$PWD\.dotnet-home"
@@ -67,7 +67,7 @@ dotnet build .\MyCat.sln --configfile .\NuGet.Config
 dotnet run --project .\windows-shell\MyCat.WindowsShell.csproj --no-restore
 ```
 
-Run the core behavior checks:
+运行核心行为检查：
 
 ```powershell
 $env:DOTNET_CLI_HOME = "$PWD\.dotnet-home"
@@ -75,32 +75,33 @@ $env:APPDATA = "$PWD\.nuget-home"
 dotnet run --project .\tests\MyCat.CatCore.Tests\MyCat.CatCore.Tests.csproj --configfile .\NuGet.Config
 ```
 
-Create a Windows x64 playtest package:
+生成 Windows x64 试玩包：
 
 ```cmd
 scripts\package-playtest.cmd
 ```
 
-The package output is written to `artifacts\playtest`. The default package is
-self-contained so testers do not need a separate .NET install. It restores
-official .NET runtime packs from NuGet using `NuGet.Publish.Config` when
-needed. If runtime packs cannot be downloaded in a restricted environment,
-create a framework-dependent folder instead:
+产物会写入 `artifacts\playtest`。默认打包尝试生成自包含版本，
+测试者不需要单独安装 .NET；它会在需要时通过 `NuGet.Publish.Config`
+从 NuGet 恢复官方 runtime pack。
+
+如果当前网络环境无法下载 runtime pack，可生成依赖本机 .NET 运行时的版本：
 
 ```cmd
 scripts\package-playtest.cmd -FrameworkDependent
 ```
 
-## Manual M0-M1 check
+## 手动验收清单
 
-1. Start the shell and confirm only the cat-shaped window content is visible.
-2. Click the cat and confirm it reacts and opens its small menu.
-3. Record sleeping, playing, or accompanying from the cat menu and see `已记下`.
-4. Record the same three observations from the tray menu.
-5. Repeat one observation three times in the same time bucket and see one learning feedback message.
-6. Restart the app and confirm `%LOCALAPPDATA%\MyCat\events.json` still contains the observations.
-7. Toggle quiet mode from the cat menu or tray menu and confirm proactive walking settles down.
-8. Wait for the cat to rotate through sitting, sleeping, and slow walking outside quiet mode.
-9. Confirm walking stays inside the main screen work area.
-10. Open the tray menu and choose `退出`.
-11. Leave a run open for 30 minutes before calling M0 stable.
+1. 启动程序，确认桌面上只看到小猫内容，没有明显背景块。
+2. 点击小猫，确认它先回应，再打开轻菜单。
+3. 从小猫菜单记录“睡觉 / 玩 / 陪我”，确认看到 `已记下`。
+4. 从托盘记录同样三类事件。
+5. 在同一时间桶连续记录同类事件 3 次，确认学习反馈只出现一次。
+6. 重启程序，确认 `%LOCALAPPDATA%\MyCat\events.json` 中记录仍存在。
+7. 从小猫菜单或托盘切换安静模式，确认主动走动明显收敛。
+8. 关闭安静模式后观察坐、睡、慢走、醒来伸懒腰和边缘停下动作。
+9. 确认慢走不会越出主屏幕工作区。
+10. 从托盘选择 `退出`，确认程序可靠结束。
+11. 在真实桌面连续运行 30 分钟，观察稳定性与干扰感。
+
