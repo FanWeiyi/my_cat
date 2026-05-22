@@ -16,7 +16,7 @@ tests           Lightweight behavior checks with no test package dependency
 
 ## Current prototype scope
 
-Included in M0-M3:
+Included in M0-M4:
 
 - Transparent borderless WPF window sized around one desktop cat.
 - Click response and a small cat menu that interrupts automatic behavior.
