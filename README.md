@@ -48,6 +48,7 @@ Learning feedback keys are saved separately at:
 
 Playtest materials:
 
+- [Development progress report](docs/development-progress-report.md)
 - [Playtest guide](docs/playtest-guide.md)
 - [Feedback form](docs/playtest-feedback.md)
 - [Release checklist](docs/playtest-release-checklist.md)
