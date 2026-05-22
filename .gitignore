@@ -6,3 +6,4 @@
 .nuget-home/
 .tools/
 .publish-git/
+artifacts/

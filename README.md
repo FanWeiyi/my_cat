@@ -50,6 +50,7 @@ Playtest materials:
 
 - [Playtest guide](docs/playtest-guide.md)
 - [Feedback form](docs/playtest-feedback.md)
+- [Release checklist](docs/playtest-release-checklist.md)
 
 ## Local development
 
@@ -71,6 +72,22 @@ Run the core behavior checks:
 $env:DOTNET_CLI_HOME = "$PWD\.dotnet-home"
 $env:APPDATA = "$PWD\.nuget-home"
 dotnet run --project .\tests\MyCat.CatCore.Tests\MyCat.CatCore.Tests.csproj --configfile .\NuGet.Config
+```
+
+Create a Windows x64 playtest package:
+
+```cmd
+scripts\package-playtest.cmd
+```
+
+The package output is written to `artifacts\playtest`. The default package is
+self-contained so testers do not need a separate .NET install. It restores
+official .NET runtime packs from NuGet using `NuGet.Publish.Config` when
+needed. If runtime packs cannot be downloaded in a restricted environment,
+create a framework-dependent folder instead:
+
+```cmd
+scripts\package-playtest.cmd -FrameworkDependent
 ```
 
 ## Manual M0-M1 check
