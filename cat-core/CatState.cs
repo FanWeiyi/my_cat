@@ -7,5 +7,9 @@ public enum CatState
     Wake,
     Walk,
     EdgePause,
-    PetReact
+    PetReact,
+    DragSettle,
+    MouseNotice,
+    WindowLinger,
+    ObservationReact
 }

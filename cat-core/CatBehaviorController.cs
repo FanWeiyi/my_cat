@@ -5,7 +5,9 @@ public sealed class CatBehaviorController
     private readonly CatBehaviorOptions _options;
     private readonly Func<double> _sample;
     private CatState _resumeAfterPet = CatState.Idle;
+    private CatState _resumeAfterReaction = CatState.Idle;
     private CatState _stateAfterWake = CatState.Idle;
+    private CatActionId _observationActionId = CatActionId.ObservationAccompany;
 
     public CatBehaviorController(CatBehaviorOptions? options = null, Func<double>? sample = null)
     {
@@ -28,7 +30,7 @@ public sealed class CatBehaviorController
     {
         QuietMode = enabled;
 
-        if (enabled && Current?.State is CatState.Walk)
+        if (enabled && Current?.State is CatState.Walk or CatState.MouseNotice or CatState.WindowLinger)
         {
             return SetState(CatState.Idle, now);
         }
@@ -52,6 +54,50 @@ public sealed class CatBehaviorController
             : Current ?? Start(now);
     }
 
+    public CatActionTransition DragSettled(DateTimeOffset now)
+    {
+        _resumeAfterReaction = CatState.Idle;
+        return SetState(CatState.DragSettle, now);
+    }
+
+    public CatActionTransition? NoticeMouse(DateTimeOffset now)
+    {
+        if (QuietMode || Current?.State is not CatState.Idle)
+        {
+            return null;
+        }
+
+        _resumeAfterReaction = CatState.Idle;
+        return SetState(CatState.MouseNotice, now);
+    }
+
+    public CatActionTransition? LingerByWindow(DateTimeOffset now)
+    {
+        if (QuietMode || Current?.State is not CatState.Idle and not CatState.EdgePause and not CatState.Walk)
+        {
+            return null;
+        }
+
+        _resumeAfterReaction = CatState.Idle;
+        return SetState(CatState.WindowLinger, now);
+    }
+
+    public CatActionTransition ReactToObservation(CatEventType eventType, DateTimeOffset now)
+    {
+        _observationActionId = eventType switch
+        {
+            CatEventType.Rest => CatActionId.ObservationRest,
+            CatEventType.Activity => CatActionId.ObservationActivity,
+            CatEventType.Accompany => CatActionId.ObservationAccompany,
+            _ => throw new ArgumentOutOfRangeException(nameof(eventType), eventType, null)
+        };
+        _resumeAfterReaction = eventType is CatEventType.Rest
+            ? CatState.Rest
+            : CatState.Idle;
+
+        return SetState(CatState.ObservationReact, now);
+    }
+
     public CatActionTransition? Advance(DateTimeOffset now)
     {
         if (Current is null)
@@ -67,6 +113,10 @@ public sealed class CatBehaviorController
         return Current.State switch
         {
             CatState.PetReact => SetState(_resumeAfterPet, now),
+            CatState.DragSettle => SetState(_resumeAfterReaction, now),
+            CatState.MouseNotice => SetState(_resumeAfterReaction, now),
+            CatState.WindowLinger => SetState(_resumeAfterReaction, now),
+            CatState.ObservationReact => SetState(_resumeAfterReaction, now),
             CatState.Wake => SetState(_stateAfterWake, now),
             CatState.EdgePause => SetState(CatState.Idle, now),
             CatState.Walk => SetState(CatState.Idle, now),
@@ -121,6 +171,10 @@ public sealed class CatBehaviorController
             CatState.Walk => (CatActionId.WalkSlow, _options.WalkDuration),
             CatState.EdgePause => (CatActionId.EdgeStop, _options.EdgePauseDuration),
             CatState.PetReact => (CatActionId.PetReact, _options.PetReactionDuration),
+            CatState.DragSettle => (CatActionId.DragSettle, _options.DragSettleDuration),
+            CatState.MouseNotice => (CatActionId.MouseNotice, _options.MouseNoticeDuration),
+            CatState.WindowLinger => (CatActionId.WindowLinger, _options.WindowLingerDuration),
+            CatState.ObservationReact => (_observationActionId, _options.ObservationReactionDuration),
             _ => throw new ArgumentOutOfRangeException(nameof(state), state, null)
         };
 

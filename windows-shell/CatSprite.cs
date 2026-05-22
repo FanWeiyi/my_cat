@@ -5,6 +5,7 @@ using Brush = System.Windows.Media.Brush;
 using Cursors = System.Windows.Input.Cursors;
 using Pen = System.Windows.Media.Pen;
 using Point = System.Windows.Point;
+using Rect = System.Windows.Rect;
 
 namespace MyCat.WindowsShell;
 
@@ -21,7 +22,7 @@ internal sealed class CatSprite : FrameworkElement
     public CatSprite()
     {
         Cursor = Cursors.Hand;
-        ToolTip = "点点小猫";
+        ToolTip = "摸摸小猫";
         Width = 184;
         Height = 168;
         SnapsToDevicePixels = true;
@@ -60,7 +61,8 @@ internal sealed class CatSprite : FrameworkElement
         {
             case "sleep_low":
             case "sleep_breathe":
-                DrawSleeping(drawingContext, FrameKey == "sleep_breathe");
+            case "sleep_dream":
+                DrawSleeping(drawingContext, FrameKey == "sleep_breathe", FrameKey == "sleep_dream");
                 break;
             case "walk_left":
             case "walk_right":
@@ -77,10 +79,30 @@ internal sealed class CatSprite : FrameworkElement
                 break;
             case "pet_squish":
             case "pet_lift":
-                DrawPetting(drawingContext, FrameKey == "pet_lift");
+            case "pet_nuzzle":
+            case "note_nuzzle":
+                DrawPetting(drawingContext, FrameKey is "pet_lift" or "note_nuzzle", FrameKey is "pet_nuzzle" or "note_nuzzle");
+                break;
+            case "settle_drop":
+            case "settle_blink":
+                DrawSettling(drawingContext, FrameKey == "settle_blink");
+                break;
+            case "notice_glance":
+            case "notice_focus":
+                DrawNoticing(drawingContext, FrameKey == "notice_focus");
+                break;
+            case "window_perch":
+            case "window_watch":
+                DrawWindowLinger(drawingContext, FrameKey == "window_watch");
+                break;
+            case "note_yawn":
+                DrawYawning(drawingContext);
+                break;
+            case "note_perk":
+                DrawPerked(drawingContext);
                 break;
             default:
-                DrawSitting(drawingContext, FrameKey == "sit_blink");
+                DrawSitting(drawingContext, FrameKey == "sit_blink", FrameKey == "sit_tail");
                 break;
         }
 
@@ -90,10 +112,13 @@ internal sealed class CatSprite : FrameworkElement
         }
     }
 
-    private static void DrawSitting(DrawingContext dc, bool blinking)
+    private static void DrawSitting(DrawingContext dc, bool blinking, bool tailLifted = false)
     {
         DrawShadow(dc, 24, 144, 132, 12);
-        dc.DrawGeometry(null, Outline, Tail(new Point(42, 118), new Point(18, 82), new Point(40, 62)));
+        dc.DrawGeometry(null, Outline, Tail(
+            new Point(42, 118),
+            new Point(18, tailLifted ? 70 : 82),
+            new Point(tailLifted ? 51 : 40, tailLifted ? 48 : 62)));
         dc.DrawEllipse(Fur, Outline, new Point(94, 113), 47, 39);
         dc.DrawEllipse(Cream, null, new Point(105, 121), 27, 25);
         dc.DrawEllipse(Fur, Outline, new Point(107, 68), 42, 38);
@@ -102,9 +127,10 @@ internal sealed class CatSprite : FrameworkElement
         DrawFace(dc, 107, 72, blinking);
         dc.DrawEllipse(Cream, Outline, new Point(80, 142), 17, 8);
         dc.DrawEllipse(Cream, Outline, new Point(122, 143), 17, 8);
+        DrawCheeks(dc, 107, 72);
     }
 
-    private static void DrawSleeping(DrawingContext dc, bool breathing)
+    private static void DrawSleeping(DrawingContext dc, bool breathing, bool dreaming = false)
     {
         var lift = breathing ? -3 : 0;
         DrawShadow(dc, 28, 144, 130, 11);
@@ -117,6 +143,11 @@ internal sealed class CatSprite : FrameworkElement
         dc.DrawLine(Outline, new Point(74, 118 + lift), new Point(84, 115 + lift));
         dc.DrawEllipse(Pink, null, new Point(71, 126 + lift), 4, 3);
         dc.DrawEllipse(Cream, Outline, new Point(134, 144), 22, 7);
+        if (dreaming)
+        {
+            dc.DrawEllipse(null, Outline, new Point(40, 78), 4, 4);
+            dc.DrawEllipse(null, Outline, new Point(30, 64), 6, 6);
+        }
     }
 
     private static void DrawWalking(DrawingContext dc, bool frontStep)
@@ -134,19 +165,21 @@ internal sealed class CatSprite : FrameworkElement
         DrawLeg(dc, 142, 120, frontStep ? 133 : 140);
     }
 
-    private static void DrawPetting(DrawingContext dc, bool lifted)
+    private static void DrawPetting(DrawingContext dc, bool lifted, bool nuzzling = false)
     {
         var headLift = lifted ? -9 : 4;
+        var headShift = nuzzling ? 7 : 0;
         DrawShadow(dc, 28, 146, 130, 12);
         dc.DrawGeometry(null, Outline, Tail(new Point(46, 121), new Point(18, 92), new Point(38, 67)));
         dc.DrawEllipse(Fur, Outline, new Point(94, lifted ? 112 : 120), lifted ? 44 : 51, lifted ? 36 : 31);
         dc.DrawEllipse(Cream, null, new Point(104, lifted ? 120 : 126), 26, 17);
-        dc.DrawEllipse(Fur, Outline, new Point(108, 72 + headLift), 44, lifted ? 41 : 34);
-        DrawEars(dc, 77, 47 + headLift, 138, 47 + headLift);
-        dc.DrawEllipse(Cream, null, new Point(118, 82 + headLift), 21, 15);
-        DrawFace(dc, 108, 76 + headLift, false);
+        dc.DrawEllipse(Fur, Outline, new Point(108 + headShift, 72 + headLift), 44, lifted ? 41 : 34);
+        DrawEars(dc, 77 + headShift, 47 + headLift, 138 + headShift, 47 + headLift);
+        dc.DrawEllipse(Cream, null, new Point(118 + headShift, 82 + headLift), 21, 15);
+        DrawFace(dc, 108 + headShift, 76 + headLift, nuzzling);
         dc.DrawEllipse(Cream, Outline, new Point(80, 143), 18, 8);
         dc.DrawEllipse(Cream, Outline, new Point(124, 143), 18, 8);
+        DrawCheeks(dc, 108 + headShift, 76 + headLift);
     }
 
     private static void DrawWaking(DrawingContext dc, string frameKey)
@@ -185,6 +218,57 @@ internal sealed class CatSprite : FrameworkElement
         DrawLeg(dc, 145, 120, watching ? 136 : 140);
     }
 
+    private static void DrawSettling(DrawingContext dc, bool blink)
+    {
+        dc.PushTransform(new TranslateTransform(0, blink ? 0 : -6));
+        DrawSitting(dc, blink, !blink);
+        dc.Pop();
+    }
+
+    private static void DrawNoticing(DrawingContext dc, bool focused)
+    {
+        DrawShadow(dc, 24, 144, 132, 12);
+        dc.DrawGeometry(null, Outline, Tail(new Point(42, 118), new Point(20, 82), new Point(42, 58)));
+        dc.DrawEllipse(Fur, Outline, new Point(92, 113), 47, 39);
+        dc.DrawEllipse(Cream, null, new Point(103, 121), 27, 25);
+        dc.DrawEllipse(Fur, Outline, new Point(focused ? 116 : 110, focused ? 64 : 68), 43, 39);
+        DrawEars(dc, focused ? 86 : 80, focused ? 37 : 43, focused ? 144 : 138, focused ? 39 : 45);
+        dc.DrawEllipse(Cream, null, new Point(focused ? 126 : 120, focused ? 75 : 78), 20, 16);
+        DrawFace(dc, focused ? 116 : 110, focused ? 70 : 72, false);
+        dc.DrawEllipse(Cream, Outline, new Point(80, 142), 17, 8);
+        dc.DrawEllipse(Cream, Outline, new Point(122, 143), 17, 8);
+    }
+
+    private static void DrawWindowLinger(DrawingContext dc, bool watching)
+    {
+        dc.DrawRoundedRectangle(Brush("#8E9EB4"), null, new Rect(25, 142, 132, 8), 3, 3);
+        DrawShadow(dc, 31, 145, 120, 8);
+        dc.DrawGeometry(null, Outline, Tail(new Point(50, 119), new Point(22, 92), new Point(45, watching ? 59 : 68)));
+        dc.DrawEllipse(Fur, Outline, new Point(94, 116), 48, 34);
+        dc.DrawEllipse(Cream, null, new Point(104, 122), 27, 18);
+        dc.DrawEllipse(Fur, Outline, new Point(119, watching ? 68 : 73), 40, 37);
+        DrawEars(dc, 90, watching ? 41 : 47, 146, watching ? 42 : 48);
+        dc.DrawEllipse(Cream, null, new Point(127, watching ? 79 : 83), 19, 14);
+        DrawFace(dc, 119, watching ? 72 : 77, !watching);
+        dc.DrawEllipse(Cream, Outline, new Point(78, 142), 18, 7);
+        dc.DrawEllipse(Cream, Outline, new Point(126, 142), 18, 7);
+    }
+
+    private static void DrawYawning(DrawingContext dc)
+    {
+        DrawSitting(dc, false, true);
+        dc.DrawEllipse(Pink, Outline, new Point(108, 92), 9, 7);
+    }
+
+    private static void DrawPerked(DrawingContext dc)
+    {
+        dc.PushTransform(new TranslateTransform(0, -5));
+        DrawSitting(dc, false, true);
+        dc.DrawEllipse(Pink, null, new Point(146, 39), 3, 3);
+        dc.DrawEllipse(Pink, null, new Point(153, 31), 2, 2);
+        dc.Pop();
+    }
+
     private static void DrawFace(DrawingContext dc, double x, double y, bool blinking)
     {
         if (blinking)
@@ -201,6 +285,12 @@ internal sealed class CatSprite : FrameworkElement
         dc.DrawEllipse(Pink, null, new Point(x + 1, y + 9), 4, 3);
         dc.DrawLine(Outline, new Point(x + 1, y + 12), new Point(x - 5, y + 17));
         dc.DrawLine(Outline, new Point(x + 1, y + 12), new Point(x + 8, y + 16));
+    }
+
+    private static void DrawCheeks(DrawingContext dc, double x, double y)
+    {
+        dc.DrawEllipse(Brush("#44E99AA3"), null, new Point(x - 28, y + 11), 6, 3);
+        dc.DrawEllipse(Brush("#44E99AA3"), null, new Point(x + 29, y + 11), 6, 3);
     }
 
     private static void DrawEars(DrawingContext dc, double leftX, double leftY, double rightX, double rightY)

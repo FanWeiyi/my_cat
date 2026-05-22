@@ -13,7 +13,11 @@ internal sealed class CatBehaviorChecks
         WalkDuration = TimeSpan.FromSeconds(3),
         WakeDuration = TimeSpan.FromSeconds(1),
         EdgePauseDuration = TimeSpan.FromSeconds(1),
-        PetReactionDuration = TimeSpan.FromSeconds(1)
+        PetReactionDuration = TimeSpan.FromSeconds(1),
+        DragSettleDuration = TimeSpan.FromSeconds(1),
+        MouseNoticeDuration = TimeSpan.FromSeconds(1),
+        WindowLingerDuration = TimeSpan.FromSeconds(1),
+        ObservationReactionDuration = TimeSpan.FromSeconds(1)
     };
 
     public void Run()
@@ -24,11 +28,17 @@ internal sealed class CatBehaviorChecks
         RestResumesAfterPetting();
         RestWakesBeforeWalking();
         WalkEdgeStopsBeforeIdle();
+        DragSettleReturnsToIdle();
+        MouseNoticeWaitsForIdleAndQuietMode();
+        WindowLingerCanFinishAWalk();
+        ObservationReactionFollowsTheRecordedEvent();
         ObservationCapturesTimeBucket();
         EventStoreSurvivesReload();
         InvalidEventJsonDoesNotCrash();
         RestObservationsBiasRestWeight();
         LearningFeedbackOnlyAppearsOnce();
+        InteractionMetricsSurviveReload();
+        InvalidMetricsJsonDoesNotCrash();
         QuietModeSuppressesWalking();
         Console.WriteLine("Cat core behavior checks passed.");
     }
@@ -98,6 +108,56 @@ internal sealed class CatBehaviorChecks
         Expect(transition.ActionId == CatActionId.EdgeStop, "An edge pause should use the edge clip.");
     }
 
+    private void DragSettleReturnsToIdle()
+    {
+        var controller = new CatBehaviorController(_fastOptions);
+        controller.Start(_start);
+        var settle = controller.DragSettled(_start + TimeSpan.FromSeconds(0.1));
+        var next = controller.Advance(_start + TimeSpan.FromSeconds(1.1));
+
+        Expect(settle.ActionId == CatActionId.DragSettle, "A placed cat should settle before idling.");
+        Expect(next?.State == CatState.Idle, "A drag settle should end in idle.");
+    }
+
+    private void MouseNoticeWaitsForIdleAndQuietMode()
+    {
+        var controller = new CatBehaviorController(_fastOptions, () => 0.45);
+        controller.Start(_start);
+        var notice = controller.NoticeMouse(_start + TimeSpan.FromSeconds(0.1));
+        controller.Advance(_start + TimeSpan.FromSeconds(1.1));
+        controller.Advance(_start + TimeSpan.FromSeconds(2.1));
+        var walkingNotice = controller.NoticeMouse(_start + TimeSpan.FromSeconds(2.2));
+        controller.SetQuietMode(true, _start + TimeSpan.FromSeconds(2.3));
+        var quietNotice = controller.NoticeMouse(_start + TimeSpan.FromSeconds(2.4));
+        var quietWindow = controller.LingerByWindow(_start + TimeSpan.FromSeconds(2.5));
+
+        Expect(notice?.ActionId == CatActionId.MouseNotice, "An idle cat should notice a nearby mouse.");
+        Expect(walkingNotice is null, "Mouse notice should not interrupt active walking.");
+        Expect(quietNotice is null, "Quiet mode should suppress mouse notice.");
+        Expect(quietWindow is null, "Quiet mode should suppress window lingering.");
+    }
+
+    private void ObservationReactionFollowsTheRecordedEvent()
+    {
+        var controller = new CatBehaviorController(_fastOptions);
+        controller.Start(_start);
+        var rest = controller.ReactToObservation(CatEventType.Rest, _start + TimeSpan.FromSeconds(0.1));
+        var next = controller.Advance(_start + TimeSpan.FromSeconds(1.1));
+
+        Expect(rest.ActionId == CatActionId.ObservationRest, "A rest note should use the rest response.");
+        Expect(next?.State == CatState.Rest, "A rest note should settle into a rest state.");
+    }
+
+    private void WindowLingerCanFinishAWalk()
+    {
+        var controller = new CatBehaviorController(_fastOptions, () => 0.45);
+        controller.Start(_start);
+        controller.Advance(_start + TimeSpan.FromSeconds(1));
+        var pause = controller.LingerByWindow(_start + TimeSpan.FromSeconds(1.1));
+
+        Expect(pause?.ActionId == CatActionId.WindowLinger, "A walk can finish at a window stay.");
+    }
+
     private static void ObservationCapturesTimeBucket()
     {
         var catEvent = CatObservationEvent.Create(
@@ -143,6 +203,53 @@ internal sealed class CatBehaviorChecks
             File.WriteAllText(path, "{ nope");
             var events = new JsonCatEventStore(path).ReadAll();
             Expect(events.Count == 0, "Invalid event JSON should fall back to an empty history.");
+        }
+        finally
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
+    }
+
+    private static void InteractionMetricsSurviveReload()
+    {
+        var path = Path.Combine(AppContext.BaseDirectory, $"metrics-{Guid.NewGuid():N}.json");
+
+        try
+        {
+            var store = new JsonCatInteractionMetricsStore(path);
+            store.Write(CatInteractionMetrics.Empty
+                .CountClick()
+                .CountDrag()
+                .CountTell()
+                .CountQuietModeEnable()
+                .CountMouseNotice()
+                .CountWindowLinger());
+
+            var metrics = new JsonCatInteractionMetricsStore(path).Read();
+            Expect(metrics.ClickCount == 1, "Metrics should keep click counts.");
+            Expect(metrics.WindowLingerCount == 1, "Metrics should keep window linger counts.");
+        }
+        finally
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
+    }
+
+    private static void InvalidMetricsJsonDoesNotCrash()
+    {
+        var path = Path.Combine(AppContext.BaseDirectory, $"metrics-invalid-{Guid.NewGuid():N}.json");
+
+        try
+        {
+            File.WriteAllText(path, "{ nope");
+            var metrics = new JsonCatInteractionMetricsStore(path).Read();
+            Expect(metrics == CatInteractionMetrics.Empty, "Invalid metrics JSON should fall back to empty counts.");
         }
         finally
         {

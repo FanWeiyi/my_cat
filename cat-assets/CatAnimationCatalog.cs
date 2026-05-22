@@ -10,14 +10,16 @@ public sealed class CatAnimationCatalog
             [CatActionId.IdleSit] = Clip(
                 CatActionId.IdleSit,
                 true,
-                ("sit_open", 720),
+                ("sit_open", 620),
                 ("sit_blink", 180),
-                ("sit_open", 600)),
+                ("sit_tail", 420),
+                ("sit_open", 560)),
             [CatActionId.RestSleep] = Clip(
                 CatActionId.RestSleep,
                 true,
-                ("sleep_low", 900),
-                ("sleep_breathe", 900)),
+                ("sleep_low", 760),
+                ("sleep_breathe", 760),
+                ("sleep_dream", 520)),
             [CatActionId.WalkSlow] = Clip(
                 CatActionId.WalkSlow,
                 true,
@@ -38,8 +40,42 @@ public sealed class CatAnimationCatalog
                 CatActionId.PetReact,
                 false,
                 ("pet_squish", 220),
-                ("pet_lift", 360),
-                ("pet_squish", 220))
+                ("pet_lift", 300),
+                ("pet_nuzzle", 420),
+                ("pet_squish", 240)),
+            [CatActionId.DragSettle] = Clip(
+                CatActionId.DragSettle,
+                false,
+                ("settle_drop", 240),
+                ("settle_blink", 460),
+                ("sit_open", 360)),
+            [CatActionId.MouseNotice] = Clip(
+                CatActionId.MouseNotice,
+                false,
+                ("notice_glance", 320),
+                ("notice_focus", 520),
+                ("sit_blink", 240)),
+            [CatActionId.WindowLinger] = Clip(
+                CatActionId.WindowLinger,
+                true,
+                ("window_perch", 680),
+                ("window_watch", 900)),
+            [CatActionId.ObservationRest] = Clip(
+                CatActionId.ObservationRest,
+                false,
+                ("note_yawn", 520),
+                ("sleep_low", 560)),
+            [CatActionId.ObservationActivity] = Clip(
+                CatActionId.ObservationActivity,
+                false,
+                ("note_perk", 420),
+                ("walk_left", 280),
+                ("note_perk", 380)),
+            [CatActionId.ObservationAccompany] = Clip(
+                CatActionId.ObservationAccompany,
+                false,
+                ("note_nuzzle", 460),
+                ("pet_nuzzle", 520))
         };
 
     public CatAnimationClip Get(CatActionId actionId)
