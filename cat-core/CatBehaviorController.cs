@@ -5,6 +5,7 @@ public sealed class CatBehaviorController
     private readonly CatBehaviorOptions _options;
     private readonly Func<double> _sample;
     private CatState _resumeAfterPet = CatState.Idle;
+    private CatState _stateAfterWake = CatState.Idle;
 
     public CatBehaviorController(CatBehaviorOptions? options = null, Func<double>? sample = null)
     {
@@ -44,6 +45,13 @@ public sealed class CatBehaviorController
         return SetState(CatState.PetReact, now);
     }
 
+    public CatActionTransition ReachWalkEdge(DateTimeOffset now)
+    {
+        return Current?.State is CatState.Walk
+            ? SetState(CatState.EdgePause, now)
+            : Current ?? Start(now);
+    }
+
     public CatActionTransition? Advance(DateTimeOffset now)
     {
         if (Current is null)
@@ -59,9 +67,24 @@ public sealed class CatBehaviorController
         return Current.State switch
         {
             CatState.PetReact => SetState(_resumeAfterPet, now),
+            CatState.Wake => SetState(_stateAfterWake, now),
+            CatState.EdgePause => SetState(CatState.Idle, now),
             CatState.Walk => SetState(CatState.Idle, now),
+            CatState.Rest => LeaveRest(now),
             _ => SetState(ChooseAutomaticState(now), now)
         };
+    }
+
+    private CatActionTransition LeaveRest(DateTimeOffset now)
+    {
+        var next = ChooseAutomaticState(now);
+        if (next is CatState.Rest)
+        {
+            return SetState(next, now);
+        }
+
+        _stateAfterWake = next;
+        return SetState(CatState.Wake, now);
     }
 
     private CatState ChooseAutomaticState(DateTimeOffset now)
@@ -94,7 +117,9 @@ public sealed class CatBehaviorController
         {
             CatState.Idle => (CatActionId.IdleSit, _options.IdleDuration),
             CatState.Rest => (CatActionId.RestSleep, _options.RestDuration),
+            CatState.Wake => (CatActionId.WakeStretch, _options.WakeDuration),
             CatState.Walk => (CatActionId.WalkSlow, _options.WalkDuration),
+            CatState.EdgePause => (CatActionId.EdgeStop, _options.EdgePauseDuration),
             CatState.PetReact => (CatActionId.PetReact, _options.PetReactionDuration),
             _ => throw new ArgumentOutOfRangeException(nameof(state), state, null)
         };

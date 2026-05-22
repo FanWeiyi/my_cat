@@ -8,6 +8,7 @@ internal sealed class TrayIconHost : IDisposable
     private readonly Forms.ContextMenuStrip _menu = new();
     private readonly Forms.NotifyIcon _notifyIcon;
     private readonly Forms.ToolStripMenuItem _quietModeItem;
+    private bool _syncingQuietMode;
 
     public TrayIconHost(Action<CatCore.CatEventType> record, Action<bool> setQuietMode, Action exit)
     {
@@ -21,7 +22,13 @@ internal sealed class TrayIconHost : IDisposable
         {
             CheckOnClick = true
         };
-        _quietModeItem.CheckedChanged += (_, _) => setQuietMode(_quietModeItem.Checked);
+        _quietModeItem.CheckedChanged += (_, _) =>
+        {
+            if (!_syncingQuietMode)
+            {
+                setQuietMode(_quietModeItem.Checked);
+            }
+        };
         _menu.Items.Add(_quietModeItem);
         _menu.Items.Add(new Forms.ToolStripSeparator());
         _menu.Items.Add("退出", null, (_, _) => exit());
@@ -39,5 +46,12 @@ internal sealed class TrayIconHost : IDisposable
         _notifyIcon.Visible = false;
         _notifyIcon.Dispose();
         _menu.Dispose();
+    }
+
+    public void SetQuietMode(bool enabled)
+    {
+        _syncingQuietMode = true;
+        _quietModeItem.Checked = enabled;
+        _syncingQuietMode = false;
     }
 }

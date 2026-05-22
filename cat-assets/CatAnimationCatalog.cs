@@ -23,6 +23,17 @@ public sealed class CatAnimationCatalog
                 true,
                 ("walk_left", 240),
                 ("walk_right", 240)),
+            [CatActionId.WakeStretch] = Clip(
+                CatActionId.WakeStretch,
+                false,
+                ("wake_low", 240),
+                ("wake_stretch", 560),
+                ("wake_settle", 420)),
+            [CatActionId.EdgeStop] = Clip(
+                CatActionId.EdgeStop,
+                false,
+                ("edge_brake", 220),
+                ("edge_watch", 860)),
             [CatActionId.PetReact] = Clip(
                 CatActionId.PetReact,
                 false,
@@ -49,4 +60,3 @@ public sealed class CatAnimationCatalog
             frames.Select(frame => new CatFrame(frame.Key, TimeSpan.FromMilliseconds(frame.Milliseconds))).ToArray());
     }
 }
-

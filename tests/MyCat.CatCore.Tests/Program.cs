@@ -11,6 +11,8 @@ internal sealed class CatBehaviorChecks
         IdleDuration = TimeSpan.FromSeconds(1),
         RestDuration = TimeSpan.FromSeconds(2),
         WalkDuration = TimeSpan.FromSeconds(3),
+        WakeDuration = TimeSpan.FromSeconds(1),
+        EdgePauseDuration = TimeSpan.FromSeconds(1),
         PetReactionDuration = TimeSpan.FromSeconds(1)
     };
 
@@ -20,8 +22,11 @@ internal sealed class CatBehaviorChecks
         PettingInterruptsWalk();
         WalkSettlesBackToIdle();
         RestResumesAfterPetting();
+        RestWakesBeforeWalking();
+        WalkEdgeStopsBeforeIdle();
         ObservationCapturesTimeBucket();
         EventStoreSurvivesReload();
+        InvalidEventJsonDoesNotCrash();
         RestObservationsBiasRestWeight();
         LearningFeedbackOnlyAppearsOnce();
         QuietModeSuppressesWalking();
@@ -70,6 +75,29 @@ internal sealed class CatBehaviorChecks
         Expect(transition?.State == CatState.Rest, "Petting a resting cat should resume rest.");
     }
 
+    private void RestWakesBeforeWalking()
+    {
+        var samples = new Queue<double>([0.2, 0.45]);
+        var controller = new CatBehaviorController(_fastOptions, () => samples.Dequeue());
+        controller.Start(_start);
+        controller.Advance(_start + TimeSpan.FromSeconds(1));
+        var transition = controller.Advance(_start + TimeSpan.FromSeconds(3));
+
+        Expect(transition?.State == CatState.Wake, "Leaving rest for activity should wake first.");
+        Expect(transition?.ActionId == CatActionId.WakeStretch, "Wake should use the stretch clip.");
+    }
+
+    private void WalkEdgeStopsBeforeIdle()
+    {
+        var controller = new CatBehaviorController(_fastOptions, () => 0.45);
+        controller.Start(_start);
+        controller.Advance(_start + TimeSpan.FromSeconds(1));
+        var transition = controller.ReachWalkEdge(_start + TimeSpan.FromSeconds(1.2));
+
+        Expect(transition.State == CatState.EdgePause, "A walking cat should pause at an edge.");
+        Expect(transition.ActionId == CatActionId.EdgeStop, "An edge pause should use the edge clip.");
+    }
+
     private static void ObservationCapturesTimeBucket()
     {
         var catEvent = CatObservationEvent.Create(
@@ -96,6 +124,25 @@ internal sealed class CatBehaviorChecks
             var reloaded = new JsonCatEventStore(path).ReadAll();
             Expect(reloaded.Count == 1, "A saved event should survive a store reload.");
             Expect(reloaded[0].TimeBucket == CatTimeBucket.Afternoon, "Reloaded event data should keep its time bucket.");
+        }
+        finally
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
+    }
+
+    private static void InvalidEventJsonDoesNotCrash()
+    {
+        var path = Path.Combine(AppContext.BaseDirectory, $"events-invalid-{Guid.NewGuid():N}.json");
+
+        try
+        {
+            File.WriteAllText(path, "{ nope");
+            var events = new JsonCatEventStore(path).ReadAll();
+            Expect(events.Count == 0, "Invalid event JSON should fall back to an empty history.");
         }
         finally
         {

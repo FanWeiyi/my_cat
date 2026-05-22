@@ -27,7 +27,8 @@ Included in M0-M3:
 - One-time learning feedback after repeated matching observations.
 - Quiet mode from the cat menu or tray menu.
 - Placeholder cat frames wired through stable action IDs:
-  `idle_sit`, `rest_sleep`, `walk_slow`, and `pet_react`.
+  `idle_sit`, `rest_sleep`, `walk_slow`, `wake_stretch`, `edge_stop`,
+  and `pet_react`.
 
 Deferred until later milestones:
 
@@ -44,6 +45,11 @@ Learning feedback keys are saved separately at:
 ```text
 %LOCALAPPDATA%\MyCat\learning-state.json
 ```
+
+Playtest materials:
+
+- [Playtest guide](docs/playtest-guide.md)
+- [Feedback form](docs/playtest-feedback.md)
 
 ## Local development
 

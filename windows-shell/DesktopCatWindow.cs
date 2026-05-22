@@ -100,7 +100,11 @@ internal sealed class DesktopCatWindow : Window
     {
         if (_behavior.Current?.State is CatState.Walk)
         {
-            MoveAlongWorkArea();
+            if (MoveAlongWorkArea())
+            {
+                Apply(_behavior.ReachWalkEdge(DateTimeOffset.Now));
+                return;
+            }
         }
 
         var transition = _behavior.Advance(DateTimeOffset.Now);
@@ -251,6 +255,7 @@ internal sealed class DesktopCatWindow : Window
             _quietModeMenuItem.Header = enabled ? "恢复陪伴" : "安静一会儿";
         }
 
+        _trayIcon.SetQuietMode(enabled);
         ShowFeedback(enabled ? "安静陪着你" : "回来陪你");
     }
 
@@ -280,7 +285,7 @@ internal sealed class DesktopCatWindow : Window
         return Left > midpoint ? -1 : 1;
     }
 
-    private void MoveAlongWorkArea()
+    private bool MoveAlongWorkArea()
     {
         var workArea = SystemParameters.WorkArea;
         var minimumLeft = workArea.Left + SafeMargin;
@@ -289,11 +294,11 @@ internal sealed class DesktopCatWindow : Window
 
         if (candidate <= minimumLeft || candidate >= maximumLeft)
         {
-            _walkDirection *= -1;
-            candidate = Math.Clamp(candidate, minimumLeft, maximumLeft);
-            _sprite.FacingLeft = _walkDirection < 0;
+            Left = Math.Clamp(candidate, minimumLeft, maximumLeft);
+            return true;
         }
 
         Left = candidate;
+        return false;
     }
 }

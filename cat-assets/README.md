@@ -9,5 +9,6 @@ can stay stable while cat art is still in progress.
 | `idle_sit` | `sit_open`, `sit_blink` |
 | `rest_sleep` | `sleep_low`, `sleep_breathe` |
 | `walk_slow` | `walk_left`, `walk_right` |
+| `wake_stretch` | `wake_low`, `wake_stretch`, `wake_settle` |
+| `edge_stop` | `edge_brake`, `edge_watch` |
 | `pet_react` | `pet_squish`, `pet_lift` |
-

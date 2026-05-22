@@ -25,9 +25,16 @@ public sealed class JsonCatLearningStateStore
             return CatLearningState.Empty;
         }
 
-        var json = File.ReadAllText(_path);
-        return JsonSerializer.Deserialize<CatLearningState>(json, SerializerOptions)
-            ?? CatLearningState.Empty;
+        try
+        {
+            var json = File.ReadAllText(_path);
+            return JsonSerializer.Deserialize<CatLearningState>(json, SerializerOptions)
+                ?? CatLearningState.Empty;
+        }
+        catch (JsonException)
+        {
+            return CatLearningState.Empty;
+        }
     }
 
     public void Write(CatLearningState state)

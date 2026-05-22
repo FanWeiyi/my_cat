@@ -27,11 +27,18 @@ public sealed class JsonCatEventStore
             return Array.Empty<CatObservationEvent>();
         }
 
-        var json = File.ReadAllText(_path);
-        var events = JsonSerializer.Deserialize<List<CatObservationEvent>>(json, SerializerOptions);
-        return events is null
-            ? Array.Empty<CatObservationEvent>()
-            : events;
+        try
+        {
+            var json = File.ReadAllText(_path);
+            var events = JsonSerializer.Deserialize<List<CatObservationEvent>>(json, SerializerOptions);
+            return events is null
+                ? Array.Empty<CatObservationEvent>()
+                : events;
+        }
+        catch (JsonException)
+        {
+            return Array.Empty<CatObservationEvent>();
+        }
     }
 
     public void Append(CatObservationEvent catEvent)

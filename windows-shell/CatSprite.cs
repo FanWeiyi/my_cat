@@ -66,6 +66,15 @@ internal sealed class CatSprite : FrameworkElement
             case "walk_right":
                 DrawWalking(drawingContext, FrameKey == "walk_right");
                 break;
+            case "wake_low":
+            case "wake_stretch":
+            case "wake_settle":
+                DrawWaking(drawingContext, FrameKey);
+                break;
+            case "edge_brake":
+            case "edge_watch":
+                DrawEdgeStop(drawingContext, FrameKey == "edge_watch");
+                break;
             case "pet_squish":
             case "pet_lift":
                 DrawPetting(drawingContext, FrameKey == "pet_lift");
@@ -138,6 +147,42 @@ internal sealed class CatSprite : FrameworkElement
         DrawFace(dc, 108, 76 + headLift, false);
         dc.DrawEllipse(Cream, Outline, new Point(80, 143), 18, 8);
         dc.DrawEllipse(Cream, Outline, new Point(124, 143), 18, 8);
+    }
+
+    private static void DrawWaking(DrawingContext dc, string frameKey)
+    {
+        if (frameKey == "wake_low")
+        {
+            DrawSleeping(dc, false);
+            return;
+        }
+
+        var stretched = frameKey == "wake_stretch";
+        DrawShadow(dc, 24, 145, 136, 11);
+        dc.DrawGeometry(null, Outline, Tail(new Point(46, 116), new Point(18, 78), new Point(35, 53)));
+        dc.DrawEllipse(Fur, Outline, new Point(94, stretched ? 111 : 117), stretched ? 59 : 49, stretched ? 27 : 35);
+        dc.DrawEllipse(Cream, null, new Point(102, stretched ? 117 : 124), stretched ? 36 : 28, 16);
+        dc.DrawEllipse(Fur, Outline, new Point(130, stretched ? 84 : 76), 34, 32);
+        DrawEars(dc, 108, stretched ? 61 : 52, 151, stretched ? 61 : 52);
+        DrawFace(dc, 130, stretched ? 85 : 78, !stretched);
+        DrawLeg(dc, 59, 124, stretched ? 144 : 138);
+        DrawLeg(dc, 88, 126, stretched ? 143 : 138);
+        DrawLeg(dc, 130, 115, stretched ? 136 : 141);
+    }
+
+    private static void DrawEdgeStop(DrawingContext dc, bool watching)
+    {
+        DrawShadow(dc, 20, 145, 144, 10);
+        dc.DrawGeometry(null, Outline, Tail(new Point(41, 106), new Point(12, watching ? 62 : 76), new Point(29, watching ? 44 : 54)));
+        dc.DrawEllipse(Fur, Outline, new Point(91, watching ? 110 : 108), 54, watching ? 34 : 31);
+        dc.DrawEllipse(Cream, null, new Point(101, 117), 33, 17);
+        dc.DrawEllipse(Fur, Outline, new Point(135, watching ? 76 : 81), 34, watching ? 35 : 30);
+        DrawEars(dc, 111, watching ? 49 : 59, 153, watching ? 47 : 57);
+        DrawFace(dc, 135, watching ? 77 : 81, false);
+        DrawLeg(dc, 61, 124, 140);
+        DrawLeg(dc, 91, 125, 140);
+        DrawLeg(dc, 124, 122, 140);
+        DrawLeg(dc, 145, 120, watching ? 136 : 140);
     }
 
     private static void DrawFace(DrawingContext dc, double x, double y, bool blinking)

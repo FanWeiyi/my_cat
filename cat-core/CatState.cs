@@ -4,7 +4,8 @@ public enum CatState
 {
     Idle,
     Rest,
+    Wake,
     Walk,
+    EdgePause,
     PetReact
 }
-
