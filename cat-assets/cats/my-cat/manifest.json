@@ -1,0 +1,125 @@
+{
+  "id": "my-cat",
+  "version": "0.3",
+  "canvasWidth": 512,
+  "canvasHeight": 512,
+  "frameCount": 16,
+  "clips": [
+    {
+      "actionId": "idle_sit",
+      "directory": "idle_sit",
+      "loop": true,
+      "frameDurationMilliseconds": 260,
+      "frameDurationsMilliseconds": [
+        12000,
+        700,
+        700,
+        700,
+        12000,
+        700,
+        700,
+        700,
+        12000,
+        700,
+        700,
+        700,
+        12000,
+        700,
+        700,
+        700
+      ]
+    },
+    {
+      "actionId": "rest_sleep",
+      "directory": "rest_sleep",
+      "loop": true,
+      "frameDurationMilliseconds": 320,
+      "frameDurationsMilliseconds": [
+        30000,
+        1000,
+        1000,
+        1000,
+        30000,
+        1000,
+        1000,
+        1000,
+        30000,
+        1000,
+        1000,
+        1000,
+        30000,
+        1000,
+        1000,
+        1000
+      ]
+    },
+    {
+      "actionId": "walk_slow",
+      "direction": "left",
+      "directory": "walk_slow_left",
+      "loop": true,
+      "frameDurationMilliseconds": 150
+    },
+    {
+      "actionId": "walk_slow",
+      "direction": "right",
+      "directory": "walk_slow_right",
+      "loop": true,
+      "frameDurationMilliseconds": 150
+    },
+    {
+      "actionId": "wake_stretch",
+      "directory": "wake_stretch",
+      "loop": false,
+      "frameDurationMilliseconds": 180
+    },
+    {
+      "actionId": "edge_stop",
+      "directory": "edge_stop",
+      "loop": false,
+      "frameDurationMilliseconds": 180
+    },
+    {
+      "actionId": "pet_react",
+      "directory": "pet_react",
+      "loop": false,
+      "frameDurationMilliseconds": 190
+    },
+    {
+      "actionId": "drag_settle",
+      "directory": "drag_settle",
+      "loop": false,
+      "frameDurationMilliseconds": 190
+    },
+    {
+      "actionId": "mouse_notice",
+      "directory": "mouse_notice",
+      "loop": false,
+      "frameDurationMilliseconds": 180
+    },
+    {
+      "actionId": "window_linger",
+      "directory": "window_linger",
+      "loop": true,
+      "frameDurationMilliseconds": 280
+    },
+    {
+      "actionId": "observation_rest",
+      "directory": "observation_rest",
+      "loop": false,
+      "frameDurationMilliseconds": 190
+    },
+    {
+      "actionId": "observation_activity",
+      "directory": "observation_activity",
+      "loop": false,
+      "frameDurationMilliseconds": 170
+    },
+    {
+      "actionId": "observation_accompany",
+      "directory": "observation_accompany",
+      "loop": false,
+      "frameDurationMilliseconds": 190
+    }
+  ]
+}
