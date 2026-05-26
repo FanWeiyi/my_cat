@@ -9,7 +9,14 @@ public enum CatState
     EdgePause,
     PetReact,
     DragSettle,
+    DragLift,
+    DragHold,
+    DragDrop,
     MouseNotice,
+    MouseTrack,
     WindowLinger,
+    WindowStartle,
+    WindowAvoid,
+    TaskbarVisit,
     ObservationReact
 }

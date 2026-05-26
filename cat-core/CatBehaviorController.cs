@@ -30,7 +30,7 @@ public sealed class CatBehaviorController
     {
         QuietMode = enabled;
 
-        if (enabled && Current?.State is CatState.Walk or CatState.MouseNotice or CatState.WindowLinger)
+        if (enabled && Current?.State is CatState.Walk or CatState.MouseNotice or CatState.WindowLinger or CatState.TaskbarVisit)
         {
             return SetState(CatState.Idle, now);
         }
@@ -60,6 +60,24 @@ public sealed class CatBehaviorController
         return SetState(CatState.DragSettle, now);
     }
 
+    public CatActionTransition DragLifted(DateTimeOffset now)
+    {
+        _resumeAfterReaction = CatState.Idle;
+        return SetState(CatState.DragLift, now);
+    }
+
+    public CatActionTransition DragHeld(DateTimeOffset now)
+    {
+        _resumeAfterReaction = CatState.Idle;
+        return SetState(CatState.DragHold, now);
+    }
+
+    public CatActionTransition DragDropped(DateTimeOffset now)
+    {
+        _resumeAfterReaction = CatState.Idle;
+        return SetState(CatState.DragDrop, now);
+    }
+
     public CatActionTransition? NoticeMouse(DateTimeOffset now)
     {
         if (QuietMode || Current?.State is not CatState.Idle)
@@ -71,6 +89,23 @@ public sealed class CatBehaviorController
         return SetState(CatState.MouseNotice, now);
     }
 
+    public CatActionTransition TrackMouse(DateTimeOffset now, CatActionId? actionId = null)
+    {
+        _resumeAfterReaction = CatState.Idle;
+        return SetState(CatState.MouseTrack, now, actionId ?? CatActionId.MouseTrack);
+    }
+
+    public CatActionTransition RetargetMouse(CatActionId actionId)
+    {
+        if (Current?.State is not CatState.MouseTrack)
+        {
+            throw new InvalidOperationException("Mouse tracking can only be retargeted while the cat is tracking the mouse.");
+        }
+
+        Current = Current with { ActionId = actionId };
+        return Current;
+    }
+
     public CatActionTransition? LingerByWindow(DateTimeOffset now)
     {
         if (QuietMode || Current?.State is not CatState.Idle and not CatState.EdgePause and not CatState.Walk)
@@ -80,6 +115,34 @@ public sealed class CatBehaviorController
 
         _resumeAfterReaction = CatState.Idle;
         return SetState(CatState.WindowLinger, now);
+    }
+
+    public CatActionTransition? StartleFromWindow(DateTimeOffset now)
+    {
+        if (Current?.State is CatState.DragLift or CatState.DragHold or CatState.DragDrop or CatState.PetReact or CatState.MouseTrack)
+        {
+            return null;
+        }
+
+        _resumeAfterReaction = CatState.Idle;
+        return SetState(CatState.WindowStartle, now);
+    }
+
+    public CatActionTransition AvoidWindow(DateTimeOffset now)
+    {
+        _resumeAfterReaction = CatState.Idle;
+        return SetState(CatState.WindowAvoid, now);
+    }
+
+    public CatActionTransition? VisitTaskbar(DateTimeOffset now, bool lie)
+    {
+        if (QuietMode || Current?.State is not CatState.Idle and not CatState.EdgePause)
+        {
+            return null;
+        }
+
+        _resumeAfterReaction = CatState.Idle;
+        return SetState(CatState.TaskbarVisit, now, lie ? CatActionId.TaskbarLie : CatActionId.TaskbarSit);
     }
 
     public CatActionTransition ReactToObservation(CatEventType eventType, DateTimeOffset now)
@@ -114,8 +177,15 @@ public sealed class CatBehaviorController
         {
             CatState.PetReact => SetState(_resumeAfterPet, now),
             CatState.DragSettle => SetState(_resumeAfterReaction, now),
+            CatState.DragLift => SetState(CatState.DragHold, now),
+            CatState.DragHold => SetState(_resumeAfterReaction, now),
+            CatState.DragDrop => SetState(_resumeAfterReaction, now),
             CatState.MouseNotice => SetState(_resumeAfterReaction, now),
+            CatState.MouseTrack => SetState(_resumeAfterReaction, now),
             CatState.WindowLinger => SetState(_resumeAfterReaction, now),
+            CatState.WindowStartle => SetState(CatState.WindowAvoid, now),
+            CatState.WindowAvoid => SetState(_resumeAfterReaction, now),
+            CatState.TaskbarVisit => SetState(_resumeAfterReaction, now),
             CatState.ObservationReact => SetState(_resumeAfterReaction, now),
             CatState.Wake => SetState(_stateAfterWake, now),
             CatState.EdgePause => SetState(CatState.Idle, now),
@@ -161,7 +231,7 @@ public sealed class CatBehaviorController
         return CatState.Idle;
     }
 
-    private CatActionTransition SetState(CatState state, DateTimeOffset now)
+    private CatActionTransition SetState(CatState state, DateTimeOffset now, CatActionId? overrideActionId = null)
     {
         var (actionId, duration) = state switch
         {
@@ -172,8 +242,15 @@ public sealed class CatBehaviorController
             CatState.EdgePause => (CatActionId.EdgeStop, _options.EdgePauseDuration),
             CatState.PetReact => (CatActionId.PetReact, _options.PetReactionDuration),
             CatState.DragSettle => (CatActionId.DragSettle, _options.DragSettleDuration),
+            CatState.DragLift => (CatActionId.DragLift, _options.DragLiftDuration),
+            CatState.DragHold => (CatActionId.DragHold, _options.DragHoldDuration),
+            CatState.DragDrop => (CatActionId.DragDrop, _options.DragDropDuration),
             CatState.MouseNotice => (CatActionId.MouseNotice, _options.MouseNoticeDuration),
+            CatState.MouseTrack => (overrideActionId ?? CatActionId.MouseTrack, _options.MouseTrackDuration),
             CatState.WindowLinger => (CatActionId.WindowLinger, _options.WindowLingerDuration),
+            CatState.WindowStartle => (CatActionId.WindowStartle, _options.WindowStartleDuration),
+            CatState.WindowAvoid => (CatActionId.WindowAvoid, _options.WindowAvoidDuration),
+            CatState.TaskbarVisit => (overrideActionId ?? CatActionId.TaskbarSit, _options.TaskbarVisitDuration),
             CatState.ObservationReact => (_observationActionId, _options.ObservationReactionDuration),
             _ => throw new ArgumentOutOfRangeException(nameof(state), state, null)
         };

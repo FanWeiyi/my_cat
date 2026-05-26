@@ -16,8 +16,20 @@ public static class CatArtPackValidator
         new(CatActionId.EdgeStop, null, false),
         new(CatActionId.PetReact, null, false),
         new(CatActionId.DragSettle, null, false),
+        new(CatActionId.DragLift, null, false),
+        new(CatActionId.DragHold, null, true),
+        new(CatActionId.DragDrop, null, false),
         new(CatActionId.MouseNotice, null, false),
+        new(CatActionId.MouseTrack, null, false),
+        new(CatActionId.MouseTrackLeft, null, false),
+        new(CatActionId.MouseTrackRight, null, false),
+        new(CatActionId.MouseTrackUp, null, false),
+        new(CatActionId.MouseTrackDown, null, false),
         new(CatActionId.WindowLinger, null, true),
+        new(CatActionId.WindowStartle, null, false),
+        new(CatActionId.WindowAvoid, null, false),
+        new(CatActionId.TaskbarSit, null, false),
+        new(CatActionId.TaskbarLie, null, false),
         new(CatActionId.ObservationRest, null, false),
         new(CatActionId.ObservationActivity, null, false),
         new(CatActionId.ObservationAccompany, null, false)
@@ -25,9 +37,9 @@ public static class CatArtPackValidator
 
     public static void Validate(string packRoot, CatArtPackManifest manifest)
     {
-        if (manifest.Id != "my-cat" || manifest.Version != "0.3")
+        if (manifest.Id != "my-cat" || manifest.Version != "0.4")
         {
-            throw new InvalidDataException("The configured cat art pack must be 'my-cat' version '0.3'.");
+            throw new InvalidDataException("The configured cat art pack must be 'my-cat' version '0.4'.");
         }
 
         if (manifest.CanvasWidth != ExpectedCanvasSize || manifest.CanvasHeight != ExpectedCanvasSize)

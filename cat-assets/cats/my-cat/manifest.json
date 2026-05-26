@@ -1,6 +1,6 @@
 {
   "id": "my-cat",
-  "version": "0.3",
+  "version": "0.4",
   "canvasWidth": 512,
   "canvasHeight": 512,
   "frameCount": 16,
@@ -12,21 +12,21 @@
       "frameDurationMilliseconds": 260,
       "frameDurationsMilliseconds": [
         12000,
-        700,
-        700,
-        700,
+        180,
+        180,
+        180,
+        180,
+        120,
+        120,
+        150,
+        120,
+        120,
+        150,
+        220,
         12000,
-        700,
-        700,
-        700,
-        12000,
-        700,
-        700,
-        700,
-        12000,
-        700,
-        700,
-        700
+        180,
+        180,
+        220
       ]
     },
     {
@@ -58,68 +58,140 @@
       "direction": "left",
       "directory": "walk_slow_left",
       "loop": true,
-      "frameDurationMilliseconds": 150
+      "frameDurationMilliseconds": 120
     },
     {
       "actionId": "walk_slow",
       "direction": "right",
       "directory": "walk_slow_right",
       "loop": true,
-      "frameDurationMilliseconds": 150
+      "frameDurationMilliseconds": 120
     },
     {
       "actionId": "wake_stretch",
       "directory": "wake_stretch",
       "loop": false,
-      "frameDurationMilliseconds": 180
+      "frameDurationMilliseconds": 140
     },
     {
       "actionId": "edge_stop",
       "directory": "edge_stop",
       "loop": false,
-      "frameDurationMilliseconds": 180
+      "frameDurationMilliseconds": 140
     },
     {
       "actionId": "pet_react",
       "directory": "pet_react",
       "loop": false,
-      "frameDurationMilliseconds": 190
+      "frameDurationMilliseconds": 140
     },
     {
       "actionId": "drag_settle",
       "directory": "drag_settle",
       "loop": false,
-      "frameDurationMilliseconds": 190
+      "frameDurationMilliseconds": 140
+    },
+    {
+      "actionId": "drag_lift",
+      "directory": "drag_lift",
+      "loop": false,
+      "frameDurationMilliseconds": 35
+    },
+    {
+      "actionId": "drag_hold",
+      "directory": "drag_hold",
+      "loop": true,
+      "frameDurationMilliseconds": 180
+    },
+    {
+      "actionId": "drag_drop",
+      "directory": "drag_drop",
+      "loop": false,
+      "frameDurationMilliseconds": 130
     },
     {
       "actionId": "mouse_notice",
       "directory": "mouse_notice",
       "loop": false,
-      "frameDurationMilliseconds": 180
+      "frameDurationMilliseconds": 140
+    },
+    {
+      "actionId": "mouse_track",
+      "directory": "mouse_track",
+      "loop": false,
+      "frameDurationMilliseconds": 130
+    },
+    {
+      "actionId": "mouse_track_left",
+      "directory": "mouse_track_left",
+      "loop": false,
+      "frameDurationMilliseconds": 130
+    },
+    {
+      "actionId": "mouse_track_right",
+      "directory": "mouse_track_right",
+      "loop": false,
+      "frameDurationMilliseconds": 130
+    },
+    {
+      "actionId": "mouse_track_up",
+      "directory": "mouse_track_up",
+      "loop": false,
+      "frameDurationMilliseconds": 130
+    },
+    {
+      "actionId": "mouse_track_down",
+      "directory": "mouse_track_down",
+      "loop": false,
+      "frameDurationMilliseconds": 130
     },
     {
       "actionId": "window_linger",
       "directory": "window_linger",
       "loop": true,
-      "frameDurationMilliseconds": 280
+      "frameDurationMilliseconds": 220
+    },
+    {
+      "actionId": "window_startle",
+      "directory": "window_startle",
+      "loop": false,
+      "frameDurationMilliseconds": 35
+    },
+    {
+      "actionId": "window_avoid",
+      "directory": "window_avoid",
+      "loop": false,
+      "frameDurationMilliseconds": 55
+    },
+    {
+      "actionId": "taskbar_sit",
+      "directory": "taskbar_sit",
+      "loop": false,
+      "frameDurationMilliseconds": 200
+    },
+    {
+      "actionId": "taskbar_lie",
+      "directory": "taskbar_lie",
+      "loop": false,
+      "frameDurationMilliseconds": 240
     },
     {
       "actionId": "observation_rest",
       "directory": "observation_rest",
       "loop": false,
-      "frameDurationMilliseconds": 190
+      "frameDurationMilliseconds": 140
     },
     {
       "actionId": "observation_activity",
       "directory": "observation_activity",
       "loop": false,
-      "frameDurationMilliseconds": 170
+      "frameDurationMilliseconds": 130
     },
     {
       "actionId": "observation_accompany",
       "directory": "observation_accompany",
       "loop": false,
-      "frameDurationMilliseconds": 190
+      "frameDurationMilliseconds": 140
     }
   ]
 }

@@ -16,8 +16,15 @@ internal sealed class CatBehaviorChecks
         EdgePauseDuration = TimeSpan.FromSeconds(1),
         PetReactionDuration = TimeSpan.FromSeconds(1),
         DragSettleDuration = TimeSpan.FromSeconds(1),
+        DragLiftDuration = TimeSpan.FromSeconds(1),
+        DragHoldDuration = TimeSpan.FromSeconds(1),
+        DragDropDuration = TimeSpan.FromSeconds(1),
         MouseNoticeDuration = TimeSpan.FromSeconds(1),
+        MouseTrackDuration = TimeSpan.FromSeconds(1),
         WindowLingerDuration = TimeSpan.FromSeconds(1),
+        WindowStartleDuration = TimeSpan.FromSeconds(1),
+        WindowAvoidDuration = TimeSpan.FromSeconds(1),
+        TaskbarVisitDuration = TimeSpan.FromSeconds(1),
         ObservationReactionDuration = TimeSpan.FromSeconds(1)
     };
 
@@ -30,8 +37,12 @@ internal sealed class CatBehaviorChecks
         RestWakesBeforeWalking();
         WalkEdgeStopsBeforeIdle();
         DragSettleReturnsToIdle();
+        DragLiftHoldAndDropReturnToIdle();
         MouseNoticeWaitsForIdleAndQuietMode();
+        ClickMouseTrackReturnsToIdle();
         WindowLingerCanFinishAWalk();
+        WindowAvoidReturnsToIdle();
+        TaskbarVisitRespectsQuietMode();
         ObservationReactionFollowsTheRecordedEvent();
         ObservationCapturesTimeBucket();
         EventStoreSurvivesReload();
@@ -123,6 +134,21 @@ internal sealed class CatBehaviorChecks
         Expect(next?.State == CatState.Idle, "A drag settle should end in idle.");
     }
 
+    private void DragLiftHoldAndDropReturnToIdle()
+    {
+        var controller = new CatBehaviorController(_fastOptions);
+        controller.Start(_start);
+        var lift = controller.DragLifted(_start + TimeSpan.FromSeconds(0.1));
+        var hold = controller.Advance(_start + TimeSpan.FromSeconds(1.1));
+        var drop = controller.DragDropped(_start + TimeSpan.FromSeconds(1.2));
+        var next = controller.Advance(_start + TimeSpan.FromSeconds(2.2));
+
+        Expect(lift.ActionId == CatActionId.DragLift, "A dragged cat should first use the lift clip.");
+        Expect(hold?.ActionId == CatActionId.DragHold, "After lift, dragging should use the held clip.");
+        Expect(drop.ActionId == CatActionId.DragDrop, "A released cat should use the drop clip.");
+        Expect(next?.State == CatState.Idle, "A drag drop should settle into idle.");
+    }
+
     private void MouseNoticeWaitsForIdleAndQuietMode()
     {
         var controller = new CatBehaviorController(_fastOptions, () => 0.45);
@@ -139,6 +165,19 @@ internal sealed class CatBehaviorChecks
         Expect(walkingNotice is null, "Mouse notice should not interrupt active walking.");
         Expect(quietNotice is null, "Quiet mode should suppress mouse notice.");
         Expect(quietWindow is null, "Quiet mode should suppress window lingering.");
+    }
+
+    private void ClickMouseTrackReturnsToIdle()
+    {
+        var controller = new CatBehaviorController(_fastOptions);
+        controller.Start(_start);
+        var track = controller.TrackMouse(_start + TimeSpan.FromSeconds(0.1), CatActionId.MouseTrackUp);
+        var retarget = controller.RetargetMouse(CatActionId.MouseTrackRight);
+        var next = controller.Advance(_start + TimeSpan.FromSeconds(1.1));
+
+        Expect(track.ActionId == CatActionId.MouseTrackUp, "A clicked cat should briefly track the mouse direction.");
+        Expect(retarget.ActionId == CatActionId.MouseTrackRight, "Mouse tracking should support live direction changes.");
+        Expect(next?.State == CatState.Idle, "Mouse tracking should end in idle.");
     }
 
     private void ObservationReactionFollowsTheRecordedEvent()
@@ -160,6 +199,32 @@ internal sealed class CatBehaviorChecks
         var pause = controller.LingerByWindow(_start + TimeSpan.FromSeconds(1.1));
 
         Expect(pause?.ActionId == CatActionId.WindowLinger, "A walk can finish at a window stay.");
+    }
+
+    private void WindowAvoidReturnsToIdle()
+    {
+        var controller = new CatBehaviorController(_fastOptions);
+        controller.Start(_start);
+        var startle = controller.StartleFromWindow(_start + TimeSpan.FromSeconds(0.1));
+        var avoid = controller.Advance(_start + TimeSpan.FromSeconds(1.1));
+        var next = controller.Advance(_start + TimeSpan.FromSeconds(2.1));
+
+        Expect(startle?.ActionId == CatActionId.WindowStartle, "A moving nearby window should startle the cat.");
+        Expect(avoid?.ActionId == CatActionId.WindowAvoid, "After the startle, the cat should avoid the window.");
+        Expect(next?.State == CatState.Idle, "Window avoidance should end in idle.");
+    }
+
+    private void TaskbarVisitRespectsQuietMode()
+    {
+        var controller = new CatBehaviorController(_fastOptions);
+        controller.Start(_start);
+        var visit = controller.VisitTaskbar(_start + TimeSpan.FromSeconds(0.1), lie: false);
+        controller.Advance(_start + TimeSpan.FromSeconds(1.1));
+        controller.SetQuietMode(true, _start + TimeSpan.FromSeconds(1.2));
+        var quietVisit = controller.VisitTaskbar(_start + TimeSpan.FromSeconds(1.3), lie: true);
+
+        Expect(visit?.ActionId == CatActionId.TaskbarSit, "A taskbar visit should use a taskbar clip.");
+        Expect(quietVisit is null, "Quiet mode should suppress proactive taskbar visits.");
     }
 
     private static void ObservationCapturesTimeBucket()
@@ -230,11 +295,18 @@ internal sealed class CatBehaviorChecks
                 .CountTell()
                 .CountQuietModeEnable()
                 .CountMouseNotice()
-                .CountWindowLinger());
+                .CountWindowLinger()
+                .CountMouseTrack()
+                .CountDragLift()
+                .CountDragDrop()
+                .CountWindowAvoid()
+                .CountTaskbarVisit()
+                .CountWindowPeek());
 
             var metrics = new JsonCatInteractionMetricsStore(path).Read();
             Expect(metrics.ClickCount == 1, "Metrics should keep click counts.");
             Expect(metrics.WindowLingerCount == 1, "Metrics should keep window linger counts.");
+            Expect(metrics.TaskbarVisitCount == 1, "Metrics should keep taskbar visit counts.");
         }
         finally
         {
@@ -333,8 +405,20 @@ internal sealed class CatBehaviorChecks
             CatActionId.EdgeStop,
             CatActionId.PetReact,
             CatActionId.DragSettle,
+            CatActionId.DragLift,
+            CatActionId.DragHold,
+            CatActionId.DragDrop,
             CatActionId.MouseNotice,
+            CatActionId.MouseTrack,
+            CatActionId.MouseTrackLeft,
+            CatActionId.MouseTrackRight,
+            CatActionId.MouseTrackUp,
+            CatActionId.MouseTrackDown,
             CatActionId.WindowLinger,
+            CatActionId.WindowStartle,
+            CatActionId.WindowAvoid,
+            CatActionId.TaskbarSit,
+            CatActionId.TaskbarLie,
             CatActionId.ObservationRest,
             CatActionId.ObservationActivity,
             CatActionId.ObservationAccompany
@@ -360,7 +444,10 @@ internal sealed class CatBehaviorChecks
         var sleep = catalog.Get(CatActionId.RestSleep);
 
         Expect(idle.Frames[0].Duration == TimeSpan.FromSeconds(12), "Idle should move often enough to feel present.");
-        Expect(idle.Frames[1].Duration == TimeSpan.FromMilliseconds(700), "Idle breath frames should stay subtle and brief.");
+        Expect(
+            idle.Frames.Skip(5).Take(6).All(frame => frame.Duration <= TimeSpan.FromMilliseconds(150)),
+            "Idle blink frames 5-10 should play as one continuous short motion.");
+        Expect(idle.Frames[8].Duration < TimeSpan.FromMilliseconds(200), "Idle blink should not pause on frame 8.");
         Expect(sleep.Frames[0].Duration == TimeSpan.FromSeconds(30), "Sleep should breathe occasionally without frequent motion.");
         Expect(sleep.Frames[1].Duration == TimeSpan.FromMilliseconds(1000), "Sleep breath frames should be slow and brief.");
     }

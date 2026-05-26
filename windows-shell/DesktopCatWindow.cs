@@ -1,5 +1,4 @@
 using System.IO;
-using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -22,13 +21,29 @@ internal sealed class DesktopCatWindow : Window
 {
     private const double SafeMargin = 18;
     private const double WalkStep = 5.6;
+    private const double DragStartThreshold = 8;
+    private const double DragHeadAnchorY = 28;
+    private const double CatFootAnchorInset = 8;
+    private const double EdgeSnapInset = 4;
+    private const double WindowEdgeSnapDistance = 48;
+    private const double TaskbarEdgeSnapDistance = 56;
+    private const double TaskbarLeftGuard = 130;
+    private const double TaskbarRightGuard = 210;
+    private const double MouseTrackDeadZone = 18;
+    private const double MouseTrackInitialDeadZone = 3;
+    private const double WindowEdgeAwarenessDistance = 54;
+    private const double TaskbarMouseExitDistance = 72;
     private static readonly TimeSpan DragPlacementMemory = TimeSpan.FromMinutes(3);
     private static readonly TimeSpan MouseNoticeCooldown = TimeSpan.FromSeconds(18);
     private static readonly TimeSpan WindowVisitCooldown = TimeSpan.FromMinutes(3);
     private static readonly TimeSpan WindowVisitRetry = TimeSpan.FromSeconds(40);
+    private static readonly TimeSpan WindowAvoidCooldown = TimeSpan.FromSeconds(6);
+    private static readonly TimeSpan TaskbarVisitMinimumCooldown = TimeSpan.FromMinutes(5);
+    private static readonly TimeSpan TaskbarVisitRandomCooldown = TimeSpan.FromMinutes(3);
     private readonly CatAnimationPlayer _animationPlayer;
     private readonly CatBehaviorController _behavior = new();
     private readonly ContextMenu _catMenu;
+    private readonly DesktopEnvironmentService _environment = new();
     private readonly JsonCatEventStore _eventStore = new(GetEventStorePath());
     private readonly JsonCatLearningStateStore _learningStateStore = new(GetLearningStateStorePath());
     private readonly JsonCatInteractionMetricsStore _metricsStore = new(GetMetricsStorePath());
@@ -49,8 +64,14 @@ internal sealed class DesktopCatWindow : Window
     private DateTimeOffset _preferredPlacementUntil;
     private DateTimeOffset _nextMouseNoticeAt;
     private DateTimeOffset _nextWindowInterestAt;
+    private DateTimeOffset _nextWindowAvoidAt;
+    private DateTimeOffset _nextTaskbarInterestAt;
+    private DateTimeOffset _dragHoldAt;
+    private DesktopWindowSnapshot? _lastForegroundWindow;
+    private CatActionId _mouseTrackActionId = CatActionId.MouseTrackRight;
     private bool _pointerDown;
     private bool _dragging;
+    private bool _pendingMouseTrackAfterPet;
     private WalkPurpose _walkPurpose = WalkPurpose.Roam;
 
     public DesktopCatWindow()
@@ -102,6 +123,7 @@ internal sealed class DesktopCatWindow : Window
         _walkTarget = new Point(Left, Top);
         _nextMouseNoticeAt = now + TimeSpan.FromSeconds(4);
         _nextWindowInterestAt = now + TimeSpan.FromSeconds(45);
+        _nextTaskbarInterestAt = now + TimeSpan.FromMinutes(5);
         Apply(_behavior.Start(now));
         _tickTimer.Start();
     }
@@ -117,6 +139,7 @@ internal sealed class DesktopCatWindow : Window
     private void HandleCatPointerDown(object sender, MouseButtonEventArgs e)
     {
         _catMenu.IsOpen = false;
+        _pendingMouseTrackAfterPet = false;
         _pointerDown = true;
         _dragging = false;
         _dragStartScreen = GetPointerScreenPosition(e);
@@ -138,9 +161,24 @@ internal sealed class DesktopCatWindow : Window
             return;
         }
 
-        _dragging = true;
+        var now = DateTimeOffset.Now;
+        if (!_dragging)
+        {
+            _dragging = true;
+            _pendingMouseTrackAfterPet = false;
+            _dragPointerOffset = new Point(Width / 2, DragHeadAnchorY);
+            var lift = _behavior.DragLifted(now);
+            _dragHoldAt = lift.EndsAt;
+            Apply(lift);
+            CountMetric(metrics => metrics.CountDragLift());
+        }
+        else if (_behavior.Current?.State is CatState.DragLift && now >= _dragHoldAt)
+        {
+            Apply(_behavior.DragHeld(now));
+        }
+
         _sprite.Cursor = Cursors.SizeAll;
-        var candidate = ClampToSafePosition(new Point(
+        var candidate = ClampToDragPosition(new Point(
             pointer.X - _dragPointerOffset.X,
             pointer.Y - _dragPointerOffset.Y));
         Left = candidate.X;
@@ -162,14 +200,17 @@ internal sealed class DesktopCatWindow : Window
         if (_dragging)
         {
             _dragging = false;
+            SnapPlacementToEdge();
             RememberPlacement();
-            Apply(_behavior.DragSettled(DateTimeOffset.Now));
+            Apply(_behavior.DragDropped(DateTimeOffset.Now));
             CountMetric(metrics => metrics.CountDrag());
+            CountMetric(metrics => metrics.CountDragDrop());
             ShowFeedback("就待这儿");
             e.Handled = true;
             return;
         }
 
+        _pendingMouseTrackAfterPet = true;
         Apply(_behavior.Pet(DateTimeOffset.Now));
         CountMetric(metrics => metrics.CountClick());
         OpenCatMenu();
@@ -209,9 +250,43 @@ internal sealed class DesktopCatWindow : Window
         }
 
         var now = DateTimeOffset.Now;
+        if (_behavior.Current?.State is CatState.TaskbarVisit && IsMouseNearTaskbar())
+        {
+            _nextTaskbarInterestAt = NextTaskbarInterestAt(now);
+            Apply(_behavior.Start(now));
+            return;
+        }
+
+        if (_pendingMouseTrackAfterPet
+            && _behavior.Current?.State is CatState.PetReact
+            && now >= _behavior.Current.EndsAt)
+        {
+            _pendingMouseTrackAfterPet = false;
+            _mouseTrackActionId = PickMouseTrackActionId(_mouseTrackActionId, MouseTrackInitialDeadZone);
+            Apply(_behavior.TrackMouse(now, _mouseTrackActionId));
+            CountMetric(metrics => metrics.CountMouseTrack());
+            return;
+        }
+
+        if (_behavior.Current?.State is CatState.MouseTrack)
+        {
+            UpdateMouseTrackDirection();
+        }
+
+        if (_behavior.Current?.State is CatState.WindowAvoid && MoveTowardWalkTarget())
+        {
+            Apply(_behavior.Advance(_behavior.Current.EndsAt)!);
+            return;
+        }
+
         if (_behavior.Current?.State is CatState.Walk && MoveTowardWalkTarget())
         {
             SettleAfterWalk(now);
+            return;
+        }
+
+        if (TryStartWindowAvoid(now))
+        {
             return;
         }
 
@@ -229,7 +304,7 @@ internal sealed class DesktopCatWindow : Window
             PickWalkTarget(transition.StartedAt);
         }
 
-        if (_walkTarget.X != Left)
+        if (transition.State is not CatState.MouseTrack && _walkTarget.X != Left)
         {
             _sprite.FacingLeft = _walkTarget.X < Left;
         }
@@ -239,6 +314,18 @@ internal sealed class DesktopCatWindow : Window
 
     private void SettleAfterWalk(DateTimeOffset now)
     {
+        if (_walkPurpose is WalkPurpose.Taskbar)
+        {
+            var taskbarVisit = _behavior.VisitTaskbar(now, lie: _random.NextDouble() < 0.45);
+            _nextTaskbarInterestAt = NextTaskbarInterestAt(now);
+            if (taskbarVisit is not null)
+            {
+                CountMetric(metrics => metrics.CountTaskbarVisit());
+                Apply(taskbarVisit);
+                return;
+            }
+        }
+
         if (_walkPurpose is WalkPurpose.Window)
         {
             var windowPause = _behavior.LingerByWindow(now);
@@ -478,8 +565,8 @@ internal sealed class DesktopCatWindow : Window
 
     private bool HasPassedDragThreshold(Point pointer)
     {
-        return Math.Abs(pointer.X - _dragStartScreen.X) >= SystemParameters.MinimumHorizontalDragDistance
-            || Math.Abs(pointer.Y - _dragStartScreen.Y) >= SystemParameters.MinimumVerticalDragDistance;
+        return Math.Abs(pointer.X - _dragStartScreen.X) >= DragStartThreshold
+            || Math.Abs(pointer.Y - _dragStartScreen.Y) >= DragStartThreshold;
     }
 
     private Point GetPointerScreenPosition(MouseEventArgs e)
@@ -501,6 +588,21 @@ internal sealed class DesktopCatWindow : Window
             Math.Clamp(candidate.Y, safe.Top, safe.Bottom));
     }
 
+    private Point ClampToDragPosition(Point candidate)
+    {
+        var screen = GetFullScreenPositionBounds();
+        return new Point(
+            Math.Clamp(candidate.X, screen.Left, screen.Right),
+            Math.Clamp(candidate.Y, screen.Top, screen.Bottom));
+    }
+
+    private Point ClampWalkPosition(Point candidate)
+    {
+        return _walkPurpose is WalkPurpose.Taskbar or WalkPurpose.WindowAvoid
+            ? ClampToDragPosition(candidate)
+            : ClampToSafePosition(candidate);
+    }
+
     private Rect GetSafePositionBounds()
     {
         var workArea = SystemParameters.WorkArea;
@@ -511,6 +613,18 @@ internal sealed class DesktopCatWindow : Window
             workArea.Top + SafeMargin,
             maximumLeft - workArea.Left - SafeMargin,
             maximumTop - workArea.Top - SafeMargin);
+    }
+
+    private Rect GetFullScreenPositionBounds()
+    {
+        var screen = _environment.FullScreenBounds;
+        var maximumLeft = Math.Max(screen.Left, screen.Right - Width);
+        var maximumTop = Math.Max(screen.Top, screen.Bottom - Height);
+        return new Rect(
+            screen.Left,
+            screen.Top,
+            maximumLeft - screen.Left,
+            maximumTop - screen.Top);
     }
 
     private void PickWalkTarget(DateTimeOffset now)
@@ -532,6 +646,13 @@ internal sealed class DesktopCatWindow : Window
         {
             _walkTarget = PickNear(placement, 118);
             _walkPurpose = WalkPurpose.Placed;
+            return;
+        }
+
+        if (!_behavior.QuietMode && now >= _nextTaskbarInterestAt && TryPickTaskbarTarget(out var taskbarTarget))
+        {
+            _walkTarget = taskbarTarget;
+            _walkPurpose = WalkPurpose.Taskbar;
             return;
         }
 
@@ -582,7 +703,7 @@ internal sealed class DesktopCatWindow : Window
         }
 
         _sprite.FacingLeft = deltaX < 0;
-        var candidate = ClampToSafePosition(new Point(
+        var candidate = ClampWalkPosition(new Point(
             current.X + ((deltaX / distance) * WalkStep),
             current.Y + ((deltaY / distance) * WalkStep)));
         if (candidate == current)
@@ -598,18 +719,13 @@ internal sealed class DesktopCatWindow : Window
     private bool TryPickWindowTarget(out Point target)
     {
         target = default;
-        var foreground = NativeMethods.GetForegroundWindow();
-        if (foreground == IntPtr.Zero
-            || foreground == new WindowInteropHelper(this).Handle
-            || NativeMethods.IsIconic(foreground)
-            || !NativeMethods.GetWindowRect(foreground, out var nativeRect))
+        var foreground = _environment.GetForegroundWindowSnapshot(new WindowInteropHelper(this).Handle, FromDevicePoint);
+        if (foreground is null)
         {
             return false;
         }
 
-        var topLeft = FromDevicePoint(new Point(nativeRect.Left, nativeRect.Top));
-        var bottomRight = FromDevicePoint(new Point(nativeRect.Right, nativeRect.Bottom));
-        var windowRect = new Rect(topLeft, bottomRight);
+        var windowRect = foreground.Value.Rect;
         if (windowRect.Width < Width || windowRect.Height < Height / 2)
         {
             return false;
@@ -636,6 +752,244 @@ internal sealed class DesktopCatWindow : Window
         return false;
     }
 
+    private bool TryStartWindowAvoid(DateTimeOffset now)
+    {
+        var foreground = _environment.GetForegroundWindowSnapshot(new WindowInteropHelper(this).Handle, FromDevicePoint);
+        if (foreground is null)
+        {
+            _lastForegroundWindow = null;
+            return false;
+        }
+
+        var previous = _lastForegroundWindow;
+        _lastForegroundWindow = foreground;
+        if (now < _nextWindowAvoidAt
+            || previous is null
+            || previous.Value.Handle != foreground.Value.Handle
+            || !HasWindowMoved(previous.Value.Rect, foreground.Value.Rect)
+            || !IsCatNearWindowEdge(foreground.Value.Rect))
+        {
+            return false;
+        }
+
+        var startle = _behavior.StartleFromWindow(now);
+        if (startle is null)
+        {
+            return false;
+        }
+
+        _walkTarget = PickWindowAvoidTarget(foreground.Value.Rect);
+        _walkPurpose = WalkPurpose.WindowAvoid;
+        _nextWindowAvoidAt = now + WindowAvoidCooldown;
+        CountMetric(metrics => metrics.CountWindowAvoid());
+        Apply(startle);
+        return true;
+    }
+
+    private bool TryPickTaskbarTarget(out Point target)
+    {
+        target = default;
+        var taskbar = _environment.BottomTaskbarBounds;
+        if (taskbar is null)
+        {
+            return false;
+        }
+
+        var x = NextBetween(taskbar.Value.Left + TaskbarLeftGuard, taskbar.Value.Right - TaskbarRightGuard - Width);
+        var y = taskbar.Value.Top - Height + 8;
+        target = ClampToDragPosition(new Point(x, y));
+        return true;
+    }
+
+    private void SnapPlacementToEdge()
+    {
+        var current = new Point(Left, Top);
+        if (TrySnapToForegroundWindow(current, out var windowSnap)
+            || TrySnapToBottomTaskbar(current, out windowSnap))
+        {
+            Left = windowSnap.X;
+            Top = windowSnap.Y;
+        }
+    }
+
+    private bool TrySnapToForegroundWindow(Point current, out Point snapped)
+    {
+        snapped = default;
+        var foreground = _environment.GetForegroundWindowSnapshot(new WindowInteropHelper(this).Handle, FromDevicePoint);
+        if (foreground is null)
+        {
+            return false;
+        }
+
+        var windowRect = foreground.Value.Rect;
+        if (windowRect.Width < Width / 2 || windowRect.Height < Height / 3)
+        {
+            return false;
+        }
+
+        var foot = CatFootPoint(current);
+        var candidates = new List<EdgeSnapCandidate>(4);
+        AddHorizontalWindowSnap(candidates, foot, windowRect.Top, windowRect.Left, windowRect.Right);
+        AddHorizontalWindowSnap(candidates, foot, windowRect.Bottom, windowRect.Left, windowRect.Right);
+        AddVerticalWindowSnap(candidates, foot, windowRect.Left, windowRect.Top, windowRect.Bottom);
+        AddVerticalWindowSnap(candidates, foot, windowRect.Right, windowRect.Top, windowRect.Bottom);
+
+        if (candidates.Count == 0)
+        {
+            return false;
+        }
+
+        snapped = ClampToDragPosition(candidates.OrderBy(candidate => candidate.Distance).First().Position);
+        return true;
+    }
+
+    private bool TrySnapToBottomTaskbar(Point current, out Point snapped)
+    {
+        snapped = default;
+        var taskbar = _environment.BottomTaskbarBounds;
+        if (taskbar is null)
+        {
+            return false;
+        }
+
+        var foot = CatFootPoint(current);
+        if (Math.Abs(foot.Y - taskbar.Value.Top) > TaskbarEdgeSnapDistance
+            || foot.X < taskbar.Value.Left
+            || foot.X > taskbar.Value.Right)
+        {
+            return false;
+        }
+
+        var x = current.X;
+        var protectedLeft = taskbar.Value.Left + TaskbarLeftGuard;
+        var protectedRight = taskbar.Value.Right - TaskbarRightGuard;
+        if (x >= protectedLeft && x + Width <= protectedRight)
+        {
+            x = Math.Clamp(x, protectedLeft, protectedRight - Width);
+        }
+
+        snapped = ClampToDragPosition(new Point(x, taskbar.Value.Top - EdgeSnapInset - CatFootAnchorYOffset));
+        return true;
+    }
+
+    private void AddHorizontalWindowSnap(List<EdgeSnapCandidate> candidates, Point foot, double edgeY, double left, double right)
+    {
+        var distance = Math.Abs(foot.Y - edgeY);
+        if (distance > WindowEdgeSnapDistance || foot.X < left - WindowEdgeSnapDistance || foot.X > right + WindowEdgeSnapDistance)
+        {
+            return;
+        }
+
+        var x = Math.Clamp(foot.X - (Width / 2), left - (Width / 2), right - (Width / 2));
+        candidates.Add(new EdgeSnapCandidate(
+            distance,
+            new Point(x, edgeY - EdgeSnapInset - CatFootAnchorYOffset)));
+    }
+
+    private void AddVerticalWindowSnap(List<EdgeSnapCandidate> candidates, Point foot, double edgeX, double top, double bottom)
+    {
+        var distance = Math.Abs(foot.X - edgeX);
+        if (distance > WindowEdgeSnapDistance || foot.Y < top - WindowEdgeSnapDistance || foot.Y > bottom + WindowEdgeSnapDistance)
+        {
+            return;
+        }
+
+        var y = Math.Clamp(foot.Y - CatFootAnchorYOffset, top - CatFootAnchorYOffset, bottom - CatFootAnchorYOffset);
+        candidates.Add(new EdgeSnapCandidate(
+            distance,
+            new Point(edgeX - (Width / 2), y)));
+    }
+
+    private Point CatFootPoint(Point catTopLeft)
+    {
+        return new Point(catTopLeft.X + (Width / 2), catTopLeft.Y + CatFootAnchorYOffset);
+    }
+
+    private double CatFootAnchorYOffset => Height - CatFootAnchorInset;
+
+    private bool IsMouseNearTaskbar()
+    {
+        var taskbar = _environment.BottomTaskbarBounds;
+        if (taskbar is null)
+        {
+            return false;
+        }
+
+        var mouse = FromDevicePoint(_environment.MouseScreenPosition);
+        var inflated = taskbar.Value;
+        inflated.Inflate(TaskbarMouseExitDistance, TaskbarMouseExitDistance);
+        return inflated.Contains(mouse);
+    }
+
+    private DateTimeOffset NextTaskbarInterestAt(DateTimeOffset now)
+    {
+        return now + TaskbarVisitMinimumCooldown + TimeSpan.FromTicks((long)(_random.NextDouble() * TaskbarVisitRandomCooldown.Ticks));
+    }
+
+    private void UpdateMouseTrackDirection()
+    {
+        var next = PickMouseTrackActionId(_mouseTrackActionId, MouseTrackDeadZone);
+        if (next == _mouseTrackActionId)
+        {
+            return;
+        }
+
+        _mouseTrackActionId = next;
+        Apply(_behavior.RetargetMouse(next));
+    }
+
+    private CatActionId PickMouseTrackActionId(CatActionId fallback, double deadZone)
+    {
+        var mouse = FromDevicePoint(_environment.MouseScreenPosition);
+        var center = new Point(Left + (Width / 2), Top + (Height / 2));
+        var dx = mouse.X - center.X;
+        var dy = mouse.Y - center.Y;
+        if (Math.Abs(dx) < deadZone && Math.Abs(dy) < deadZone)
+        {
+            return fallback;
+        }
+
+        if (Math.Abs(dx) >= Math.Abs(dy))
+        {
+            _sprite.FacingLeft = dx < 0;
+            return dx < 0 ? CatActionId.MouseTrackLeft : CatActionId.MouseTrackRight;
+        }
+
+        return dy < 0 ? CatActionId.MouseTrackUp : CatActionId.MouseTrackDown;
+    }
+
+    private Point PickWindowAvoidTarget(Rect windowRect)
+    {
+        var cat = new Rect(Left, Top, Width, Height);
+        var windowCenter = new Point(windowRect.Left + (windowRect.Width / 2), windowRect.Top + (windowRect.Height / 2));
+        var catCenter = new Point(cat.Left + (cat.Width / 2), cat.Top + (cat.Height / 2));
+        var direction = catCenter.X < windowCenter.X ? -1 : 1;
+        return ClampToSafePosition(new Point(Left + (direction * 150), Top + NextOffset(26)));
+    }
+
+    private bool IsCatNearWindowEdge(Rect windowRect)
+    {
+        var cat = new Rect(Left, Top, Width, Height);
+        var nearWindow = windowRect;
+        nearWindow.Inflate(WindowEdgeAwarenessDistance, WindowEdgeAwarenessDistance);
+        if (!nearWindow.IntersectsWith(cat))
+        {
+            return false;
+        }
+
+        var insideWindow = windowRect;
+        insideWindow.Inflate(-WindowEdgeAwarenessDistance, -WindowEdgeAwarenessDistance);
+        return !insideWindow.Contains(cat);
+    }
+
+    private static bool HasWindowMoved(Rect previous, Rect current)
+    {
+        return Math.Abs(previous.Left - current.Left) >= 4
+            || Math.Abs(previous.Top - current.Top) >= 4
+            || Math.Abs(previous.Width - current.Width) >= 4
+            || Math.Abs(previous.Height - current.Height) >= 4;
+    }
+
     private double NextOffset(double radius)
     {
         return (_random.NextDouble() * radius * 2) - radius;
@@ -659,29 +1013,10 @@ internal sealed class DesktopCatWindow : Window
     {
         Roam,
         Placed,
-        Window
+        Window,
+        WindowAvoid,
+        Taskbar
     }
 
-    private static class NativeMethods
-    {
-        [DllImport("user32.dll")]
-        public static extern IntPtr GetForegroundWindow();
-
-        [DllImport("user32.dll")]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        public static extern bool IsIconic(IntPtr windowHandle);
-
-        [DllImport("user32.dll")]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        public static extern bool GetWindowRect(IntPtr windowHandle, out NativeRect rect);
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct NativeRect
-    {
-        public int Left;
-        public int Top;
-        public int Right;
-        public int Bottom;
-    }
+    private readonly record struct EdgeSnapCandidate(double Distance, Point Position);
 }
