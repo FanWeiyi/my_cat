@@ -40,6 +40,9 @@ internal sealed class DesktopCatWindow : Window
     private static readonly TimeSpan WindowAvoidCooldown = TimeSpan.FromSeconds(6);
     private static readonly TimeSpan TaskbarVisitMinimumCooldown = TimeSpan.FromMinutes(5);
     private static readonly TimeSpan TaskbarVisitRandomCooldown = TimeSpan.FromMinutes(3);
+    private static readonly TimeSpan IdleMouseGlanceMinimumDelay = TimeSpan.FromSeconds(12);
+    private static readonly TimeSpan IdleMouseGlanceRandomDelay = TimeSpan.FromSeconds(16);
+    private static readonly TimeSpan IdleMouseGlanceDuration = TimeSpan.FromSeconds(3);
     private readonly CatAnimationPlayer _animationPlayer;
     private readonly CatBehaviorController _behavior = new();
     private readonly ContextMenu _catMenu;
@@ -47,6 +50,7 @@ internal sealed class DesktopCatWindow : Window
     private readonly JsonCatEventStore _eventStore = new(GetEventStorePath());
     private readonly JsonCatLearningStateStore _learningStateStore = new(GetLearningStateStorePath());
     private readonly JsonCatInteractionMetricsStore _metricsStore = new(GetMetricsStorePath());
+    private readonly JsonCatBehaviorSettingsStore _behaviorSettingsStore = new(GetBehaviorSettingsStorePath());
     private readonly Border _feedbackBubble;
     private readonly TextBlock _feedbackText = new();
     private readonly Random _random = new();
@@ -55,7 +59,9 @@ internal sealed class DesktopCatWindow : Window
     private readonly DispatcherTimer _tickTimer;
     private readonly TrayIconHost _trayIcon;
     private CatLearningFeedbackTracker _learningFeedback = new();
+    private CatBehaviorSettings _behaviorSettings = CatBehaviorSettings.Empty;
     private CatInteractionMetrics _metrics = CatInteractionMetrics.Empty;
+    private BehaviorSettingsWindow? _behaviorSettingsWindow;
     private MenuItem? _quietModeMenuItem;
     private Point _dragPointerOffset;
     private Point _dragStartScreen;
@@ -66,12 +72,15 @@ internal sealed class DesktopCatWindow : Window
     private DateTimeOffset _nextWindowInterestAt;
     private DateTimeOffset _nextWindowAvoidAt;
     private DateTimeOffset _nextTaskbarInterestAt;
+    private DateTimeOffset _nextIdleMouseGlanceAt = DateTimeOffset.MaxValue;
     private DateTimeOffset _dragHoldAt;
+    private DateTimeOffset? _idleMouseGlanceEndsAt;
     private DesktopWindowSnapshot? _lastForegroundWindow;
     private CatActionId _mouseTrackActionId = CatActionId.MouseTrackRight;
     private bool _pointerDown;
     private bool _dragging;
     private bool _pendingMouseTrackAfterPet;
+    private bool _idleMouseGlanceActive;
     private WalkPurpose _walkPurpose = WalkPurpose.Roam;
 
     public DesktopCatWindow()
@@ -94,6 +103,7 @@ internal sealed class DesktopCatWindow : Window
         _trayIcon = new TrayIconHost(
             eventType => Dispatcher.BeginInvoke(() => Record(eventType, CatEventSource.TrayMenu)),
             enabled => Dispatcher.BeginInvoke(() => SetQuietMode(enabled)),
+            () => Dispatcher.BeginInvoke(OpenBehaviorSettings),
             () => Dispatcher.Invoke(Close));
         _feedbackTimer = new DispatcherTimer(DispatcherPriority.Background)
         {
@@ -116,6 +126,7 @@ internal sealed class DesktopCatWindow : Window
 
     private void HandleLoaded(object sender, RoutedEventArgs e)
     {
+        LoadBehaviorSettings();
         LoadLearningState();
         LoadMetrics();
         PositionNearWorkArea();
@@ -273,6 +284,11 @@ internal sealed class DesktopCatWindow : Window
             UpdateMouseTrackDirection();
         }
 
+        if (HandleIdleMouseGlance(now))
+        {
+            return;
+        }
+
         if (_behavior.Current?.State is CatState.WindowAvoid && MoveTowardWalkTarget())
         {
             Apply(_behavior.Advance(_behavior.Current.EndsAt)!);
@@ -299,6 +315,15 @@ internal sealed class DesktopCatWindow : Window
 
     private void Apply(CatActionTransition transition)
     {
+        if (transition.State is CatState.Idle)
+        {
+            ScheduleIdleMouseGlance(transition.StartedAt);
+        }
+        else
+        {
+            ClearIdleMouseGlance();
+        }
+
         if (transition.State is CatState.Walk)
         {
             PickWalkTarget(transition.StartedAt);
@@ -310,6 +335,80 @@ internal sealed class DesktopCatWindow : Window
         }
 
         _animationPlayer.Play(transition.ActionId);
+    }
+
+    private bool HandleIdleMouseGlance(DateTimeOffset now)
+    {
+        if (_behavior.Current?.State is not CatState.Idle || _behavior.QuietMode)
+        {
+            ClearIdleMouseGlance();
+            return false;
+        }
+
+        if (_idleMouseGlanceActive)
+        {
+            if (_idleMouseGlanceEndsAt is not null && now >= _idleMouseGlanceEndsAt)
+            {
+                EndIdleMouseGlance(now);
+                return false;
+            }
+
+            UpdateIdleMouseGlanceDirection();
+            return true;
+        }
+
+        if (now < _nextIdleMouseGlanceAt)
+        {
+            return false;
+        }
+
+        StartIdleMouseGlance(now);
+        return true;
+    }
+
+    private void StartIdleMouseGlance(DateTimeOffset now)
+    {
+        _idleMouseGlanceActive = true;
+        _idleMouseGlanceEndsAt = now + IdleMouseGlanceDuration;
+        _mouseTrackActionId = PickMouseTrackActionId(_mouseTrackActionId, MouseTrackInitialDeadZone);
+        _animationPlayer.Play(_mouseTrackActionId);
+        CountMetric(metrics => metrics.CountMouseTrack());
+    }
+
+    private void EndIdleMouseGlance(DateTimeOffset now)
+    {
+        _idleMouseGlanceActive = false;
+        _idleMouseGlanceEndsAt = null;
+        _animationPlayer.Play(CatActionId.IdleSit);
+        ScheduleIdleMouseGlance(now);
+    }
+
+    private void UpdateIdleMouseGlanceDirection()
+    {
+        var next = PickMouseTrackActionId(_mouseTrackActionId, MouseTrackDeadZone);
+        if (next == _mouseTrackActionId)
+        {
+            return;
+        }
+
+        _mouseTrackActionId = next;
+        _animationPlayer.Play(next);
+    }
+
+    private void ScheduleIdleMouseGlance(DateTimeOffset now)
+    {
+        _idleMouseGlanceActive = false;
+        _idleMouseGlanceEndsAt = null;
+        _nextIdleMouseGlanceAt = _behavior.QuietMode
+            ? DateTimeOffset.MaxValue
+            : now + IdleMouseGlanceMinimumDelay + TimeSpan.FromTicks((long)(_random.NextDouble() * IdleMouseGlanceRandomDelay.Ticks));
+    }
+
+    private void ClearIdleMouseGlance()
+    {
+        _idleMouseGlanceActive = false;
+        _idleMouseGlanceEndsAt = null;
+        _nextIdleMouseGlanceAt = DateTimeOffset.MaxValue;
     }
 
     private void SettleAfterWalk(DateTimeOffset now)
@@ -376,6 +475,7 @@ internal sealed class DesktopCatWindow : Window
         tellMenu.Items.Add(MenuItem("我家猫在玩", () => Record(CatEventType.Activity, CatEventSource.DesktopCatMenu)));
         tellMenu.Items.Add(MenuItem("我家猫在陪我", () => Record(CatEventType.Accompany, CatEventSource.DesktopCatMenu)));
         menu.Items.Add(tellMenu);
+        menu.Items.Add(MenuItem("调整作息", OpenBehaviorSettings));
         _quietModeMenuItem = MenuItem("安静一会儿", () => SetQuietMode(!_behavior.QuietMode));
         menu.Items.Add(_quietModeMenuItem);
 
@@ -420,6 +520,40 @@ internal sealed class DesktopCatWindow : Window
     {
         _catMenu.PlacementTarget = _sprite;
         _catMenu.IsOpen = true;
+    }
+
+    private void OpenBehaviorSettings()
+    {
+        try
+        {
+            if (_behaviorSettingsWindow is { IsVisible: true })
+            {
+                _behaviorSettingsWindow.Activate();
+                return;
+            }
+
+            RefreshHabitProfile();
+            _behaviorSettingsWindow = new BehaviorSettingsWindow(
+                _behavior.HabitProfile,
+                _behaviorSettings,
+                _behavior.QuietMode,
+                SaveBehaviorSettings)
+            {
+                Owner = this
+            };
+            _behaviorSettingsWindow.Closed += (_, _) => _behaviorSettingsWindow = null;
+            _behaviorSettingsWindow.Show();
+        }
+        catch (Exception ex)
+        {
+            _behaviorSettingsWindow = null;
+            System.Windows.MessageBox.Show(
+                this,
+                $"调整作息暂时没有打开成功：{ex.Message}",
+                "My Cat",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+        }
     }
 
     private void Record(CatEventType eventType, string source)
@@ -471,6 +605,25 @@ internal sealed class DesktopCatWindow : Window
         _learningFeedback = new CatLearningFeedbackTracker(_learningStateStore.Read().SeenFeedbackKeys);
     }
 
+    private void LoadBehaviorSettings()
+    {
+        try
+        {
+            _behaviorSettings = _behaviorSettingsStore.Read();
+            _behavior.BehaviorSettings = _behaviorSettings;
+        }
+        catch (IOException)
+        {
+            _behaviorSettings = CatBehaviorSettings.Empty;
+            _behavior.BehaviorSettings = _behaviorSettings;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            _behaviorSettings = CatBehaviorSettings.Empty;
+            _behavior.BehaviorSettings = _behaviorSettings;
+        }
+    }
+
     private void LoadMetrics()
     {
         try
@@ -490,6 +643,15 @@ internal sealed class DesktopCatWindow : Window
     private void RefreshHabitProfile()
     {
         _behavior.HabitProfile = CatHabitProfile.FromEvents(_eventStore.ReadAll());
+        _behavior.BehaviorSettings = _behaviorSettings;
+    }
+
+    private void SaveBehaviorSettings(CatBehaviorSettings settings)
+    {
+        _behaviorSettingsStore.Write(settings);
+        _behaviorSettings = settings;
+        _behavior.BehaviorSettings = settings;
+        ShowFeedback("作息已更新");
     }
 
     private void SaveLearningState()
@@ -546,6 +708,12 @@ internal sealed class DesktopCatWindow : Window
     {
         var localData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
         return Path.Combine(localData, "MyCat", "interaction-metrics.json");
+    }
+
+    private static string GetBehaviorSettingsStorePath()
+    {
+        var localData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        return Path.Combine(localData, "MyCat", "behavior-settings.json");
     }
 
     private void PositionNearWorkArea()

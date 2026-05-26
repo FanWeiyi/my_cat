@@ -19,6 +19,8 @@ public sealed class CatBehaviorController
 
     public CatHabitProfile HabitProfile { get; set; } = CatHabitProfile.FromEvents(Array.Empty<CatObservationEvent>());
 
+    public CatBehaviorSettings BehaviorSettings { get; set; } = CatBehaviorSettings.Empty;
+
     public bool QuietMode { get; private set; }
 
     public CatActionTransition Start(DateTimeOffset now)
@@ -209,7 +211,8 @@ public sealed class CatBehaviorController
 
     private CatState ChooseAutomaticState(DateTimeOffset now)
     {
-        var weights = HabitProfile.For(CatTimeBucketResolver.Resolve(now));
+        var bucket = CatTimeBucketResolver.Resolve(now);
+        var weights = BehaviorSettings.ResolveWeights(bucket, HabitProfile);
         var activityWeight = QuietMode
             ? weights.ActivityWeight * 0.08
             : weights.ActivityWeight;

@@ -16,7 +16,7 @@ public sealed record CatBehaviorOptions
 
     public TimeSpan DragSettleDuration { get; init; } = TimeSpan.FromSeconds(1.4);
 
-    public TimeSpan DragLiftDuration { get; init; } = TimeSpan.FromMilliseconds(420);
+    public TimeSpan DragLiftDuration { get; init; } = TimeSpan.FromMilliseconds(560);
 
     public TimeSpan DragHoldDuration { get; init; } = TimeSpan.FromSeconds(30);
 

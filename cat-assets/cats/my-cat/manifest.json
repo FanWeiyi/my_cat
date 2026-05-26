@@ -101,13 +101,13 @@
       "actionId": "drag_hold",
       "directory": "drag_hold",
       "loop": true,
-      "frameDurationMilliseconds": 180
+      "frameDurationMilliseconds": 260
     },
     {
       "actionId": "drag_drop",
       "directory": "drag_drop",
       "loop": false,
-      "frameDurationMilliseconds": 130
+      "frameDurationMilliseconds": 70
     },
     {
       "actionId": "mouse_notice",

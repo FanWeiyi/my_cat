@@ -51,6 +51,13 @@ internal sealed class CatBehaviorChecks
         LearningFeedbackOnlyAppearsOnce();
         InteractionMetricsSurviveReload();
         InvalidMetricsJsonDoesNotCrash();
+        BehaviorSettingsUseLearnedWeightsByDefault();
+        BehaviorSettingsOverrideOnlyOneBucket();
+        BehaviorSettingsNormalizeManualWeights();
+        BehaviorSettingsStoreSurvivesReload();
+        InvalidBehaviorSettingsJsonDoesNotCrash();
+        ManualBehaviorSettingsAffectAutomaticChoices();
+        QuietModeSuppressesManualActivity();
         QuietModeSuppressesWalking();
         DefaultBehaviorDurationsKeepIdleAndRestCalm();
         PersonalizedArtPackLoadsEveryAction();
@@ -334,6 +341,129 @@ internal sealed class CatBehaviorChecks
                 File.Delete(path);
             }
         }
+    }
+
+    private static void BehaviorSettingsUseLearnedWeightsByDefault()
+    {
+        var profile = CatHabitProfile.FromEvents(Enumerable.Range(0, 4)
+            .Select(index => CatObservationEvent.Create(
+                CatEventType.Rest,
+                new DateTimeOffset(2026, 5, 21, 14, index, 0, TimeSpan.FromHours(8)),
+                CatEventSource.DesktopCatMenu)));
+        var resolved = CatBehaviorSettings.Empty.ResolveWeights(CatTimeBucket.Afternoon, profile);
+
+        Expect(
+            resolved.RestWeight == profile.For(CatTimeBucket.Afternoon).RestWeight,
+            "Behavior settings should use learned weights when there is no manual override.");
+    }
+
+    private static void BehaviorSettingsOverrideOnlyOneBucket()
+    {
+        var profile = CatHabitProfile.FromEvents(Enumerable.Range(0, 4)
+            .Select(index => CatObservationEvent.Create(
+                CatEventType.Activity,
+                new DateTimeOffset(2026, 5, 21, 20, index, 0, TimeSpan.FromHours(8)),
+                CatEventSource.DesktopCatMenu)));
+        var settings = CatBehaviorSettings.Empty.WithManual(
+            CatTimeBucket.Afternoon,
+            new CatHabitWeights(0.8, 0.1, 0.1));
+
+        var afternoon = settings.ResolveWeights(CatTimeBucket.Afternoon, profile);
+        var evening = settings.ResolveWeights(CatTimeBucket.Evening, profile);
+
+        Expect(afternoon.RestWeight > 0.79, "A manual bucket should use the saved manual rest weight.");
+        Expect(
+            evening.ActivityWeight == profile.For(CatTimeBucket.Evening).ActivityWeight,
+            "Manual settings should not affect other time buckets.");
+    }
+
+    private static void BehaviorSettingsNormalizeManualWeights()
+    {
+        var settings = CatBehaviorSettings.Empty.WithManual(
+            CatTimeBucket.Morning,
+            new CatHabitWeights(2, 1, 1));
+        var manual = settings.ManualWeights[CatTimeBucket.Morning];
+        var total = manual.RestWeight + manual.ActivityWeight + manual.AccompanyWeight;
+
+        Expect(Math.Abs(total - 1) < 0.0001, "Manual behavior weights should be normalized before saving.");
+        Expect(Math.Abs(manual.RestWeight - 0.5) < 0.0001, "Normalized rest weight should preserve the input ratio.");
+    }
+
+    private static void BehaviorSettingsStoreSurvivesReload()
+    {
+        var path = Path.Combine(AppContext.BaseDirectory, $"behavior-settings-{Guid.NewGuid():N}.json");
+
+        try
+        {
+            var settings = CatBehaviorSettings.Empty.WithManual(
+                CatTimeBucket.Night,
+                new CatHabitWeights(0.1, 0.7, 0.2));
+            var store = new JsonCatBehaviorSettingsStore(path);
+            store.Write(settings);
+
+            var reloaded = new JsonCatBehaviorSettingsStore(path).Read();
+            var hasManual = reloaded.TryGetManual(CatTimeBucket.Night, out var weights);
+
+            Expect(hasManual, "Saved behavior settings should keep a manual bucket override.");
+            Expect(weights.ActivityWeight > 0.69, "Saved behavior settings should keep manual activity weight.");
+        }
+        finally
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
+    }
+
+    private static void InvalidBehaviorSettingsJsonDoesNotCrash()
+    {
+        var path = Path.Combine(AppContext.BaseDirectory, $"behavior-settings-invalid-{Guid.NewGuid():N}.json");
+
+        try
+        {
+            File.WriteAllText(path, "{ nope");
+            var settings = new JsonCatBehaviorSettingsStore(path).Read();
+            Expect(settings.ManualWeights.Count == 0, "Invalid behavior settings JSON should fall back to empty settings.");
+        }
+        finally
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
+    }
+
+    private void ManualBehaviorSettingsAffectAutomaticChoices()
+    {
+        var controller = new CatBehaviorController(_fastOptions, () => 0.2)
+        {
+            BehaviorSettings = CatBehaviorSettings.Empty.WithManual(
+                CatTimeBucket.Afternoon,
+                new CatHabitWeights(0.05, 0.9, 0.05))
+        };
+
+        controller.Start(_start);
+        var transition = controller.Advance(_start + TimeSpan.FromSeconds(1));
+
+        Expect(transition?.State == CatState.Walk, "Manual activity settings should affect automatic choices.");
+    }
+
+    private void QuietModeSuppressesManualActivity()
+    {
+        var controller = new CatBehaviorController(_fastOptions, () => 0.95)
+        {
+            BehaviorSettings = CatBehaviorSettings.Empty.WithManual(
+                CatTimeBucket.Afternoon,
+                new CatHabitWeights(0.01, 0.98, 0.01))
+        };
+
+        controller.Start(_start);
+        controller.SetQuietMode(true, _start);
+        var transition = controller.Advance(_start + TimeSpan.FromSeconds(1));
+
+        Expect(transition?.State != CatState.Walk, "Quiet mode should still suppress manually boosted activity.");
     }
 
     private static void RestObservationsBiasRestWeight()

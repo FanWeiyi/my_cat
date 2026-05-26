@@ -10,7 +10,7 @@ internal sealed class TrayIconHost : IDisposable
     private readonly Forms.ToolStripMenuItem _quietModeItem;
     private bool _syncingQuietMode;
 
-    public TrayIconHost(Action<CatCore.CatEventType> record, Action<bool> setQuietMode, Action exit)
+    public TrayIconHost(Action<CatCore.CatEventType> record, Action<bool> setQuietMode, Action openBehaviorSettings, Action exit)
     {
         var tellMenu = new Forms.ToolStripMenuItem("告诉它");
         tellMenu.DropDownItems.Add("我家猫在睡觉", null, (_, _) => record(CatCore.CatEventType.Rest));
@@ -30,6 +30,7 @@ internal sealed class TrayIconHost : IDisposable
             }
         };
         _menu.Items.Add(_quietModeItem);
+        _menu.Items.Add("行为节奏设置", null, (_, _) => openBehaviorSettings());
         _menu.Items.Add(new Forms.ToolStripSeparator());
         _menu.Items.Add("退出", null, (_, _) => exit());
         _notifyIcon = new Forms.NotifyIcon
