@@ -81,6 +81,9 @@ internal sealed class DesktopCatWindow : Window
     private bool _dragging;
     private bool _pendingMouseTrackAfterPet;
     private bool _idleMouseGlanceActive;
+    private bool _walkEndMouseGlancePending;
+    private bool _currentIdleMouseGlanceFromWalkEnd;
+    private CatState? _lastAppliedState;
     private WalkPurpose _walkPurpose = WalkPurpose.Roam;
 
     public DesktopCatWindow()
@@ -315,6 +318,26 @@ internal sealed class DesktopCatWindow : Window
 
     private void Apply(CatActionTransition transition)
     {
+        var previousState = _lastAppliedState;
+        var isWalkEndIdle = transition.State is CatState.Idle
+            && previousState is CatState.Walk or CatState.EdgePause;
+
+        if (transition.State is CatState.Walk)
+        {
+            _walkEndMouseGlancePending = false;
+            _currentIdleMouseGlanceFromWalkEnd = false;
+        }
+        else if (isWalkEndIdle)
+        {
+            _walkEndMouseGlancePending = true;
+            _currentIdleMouseGlanceFromWalkEnd = false;
+        }
+        else if (transition.State is not CatState.Idle)
+        {
+            _walkEndMouseGlancePending = false;
+            _currentIdleMouseGlanceFromWalkEnd = false;
+        }
+
         if (transition.State is CatState.Idle)
         {
             ScheduleIdleMouseGlance(transition.StartedAt);
@@ -335,6 +358,7 @@ internal sealed class DesktopCatWindow : Window
         }
 
         _animationPlayer.Play(transition.ActionId);
+        _lastAppliedState = transition.State;
     }
 
     private bool HandleIdleMouseGlance(DateTimeOffset now)
@@ -370,6 +394,8 @@ internal sealed class DesktopCatWindow : Window
     {
         _idleMouseGlanceActive = true;
         _idleMouseGlanceEndsAt = now + IdleMouseGlanceDuration;
+        _currentIdleMouseGlanceFromWalkEnd = _walkEndMouseGlancePending;
+        _walkEndMouseGlancePending = false;
         _mouseTrackActionId = PickMouseTrackActionId(_mouseTrackActionId, MouseTrackInitialDeadZone);
         _animationPlayer.Play(_mouseTrackActionId);
         CountMetric(metrics => metrics.CountMouseTrack());
@@ -380,6 +406,13 @@ internal sealed class DesktopCatWindow : Window
         _idleMouseGlanceActive = false;
         _idleMouseGlanceEndsAt = null;
         _animationPlayer.Play(CatActionId.IdleSit);
+        if (_currentIdleMouseGlanceFromWalkEnd)
+        {
+            _currentIdleMouseGlanceFromWalkEnd = false;
+            _nextIdleMouseGlanceAt = DateTimeOffset.MaxValue;
+            return;
+        }
+
         ScheduleIdleMouseGlance(now);
     }
 
