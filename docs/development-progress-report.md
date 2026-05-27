@@ -140,8 +140,8 @@ scripts\package-playtest.cmd -FrameworkDependent
 输出位置：
 
 ```text
-artifacts\playtest\MyCat-playtest-win-x64\
-artifacts\playtest\MyCat-playtest-win-x64.zip
+artifacts\playtest\MyCat-v0.5-playtest-win-x64\
+artifacts\playtest\MyCat-v0.5-playtest-win-x64.zip
 ```
 
 试玩相关文档：
@@ -150,6 +150,7 @@ artifacts\playtest\MyCat-playtest-win-x64.zip
 - `docs/playtest-feedback.md`
 - `docs/playtest-release-checklist.md`
 - `docs/playtest-runbook.txt`
+- `docs/release-notes-v0.5-playtest.md`
 
 ## 已完成验证
 

@@ -4,6 +4,9 @@
     <TargetFramework>net9.0-windows</TargetFramework>
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
+    <AssemblyVersion>0.5.0.0</AssemblyVersion>
+    <FileVersion>0.5.0.0</FileVersion>
+    <InformationalVersion>0.5.0-playtest.1</InformationalVersion>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\cat-assets\MyCat.CatAssets.csproj" />

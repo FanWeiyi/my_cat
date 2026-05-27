@@ -1,22 +1,26 @@
-My Cat playtest build
+My Cat V0.5 Playtest
 
 Start:
 1. Double-click MyCat.WindowsShell.exe.
 2. Click the cat to pet it and open its small menu.
-3. Use the tray icon menu to record or exit when needed.
+3. Use the tray icon menu to record, open settings, inspect folders, or exit.
 
 Try:
 - Drag the cat to a desktop spot you want it to stay near.
 - Pass the mouse near it and watch for a quiet attention response.
 - Tell it the real cat is sleeping, playing, or accompanying you.
 - Record the same kind of observation three times in one time period.
+- Open behavior rhythm settings and adjust one time period.
 - Turn quiet mode on and off from the cat or tray menu.
+- Open About My Cat from the tray and confirm the version says V0.5 Playtest.
+- Open the data and log folders from the tray.
 - Leave quiet mode off long enough to catch an occasional window-side stay.
 
 Notes:
 - The cat saves local prototype data and playtest interaction counts under
   %LOCALAPPDATA%\MyCat.
-- This is a Windows desktop prototype with the My Cat personalized v0.3 art pack.
-- This package may ask Windows for the .NET 9 Desktop Runtime if it is not already installed.
+- Logs are saved under %LOCALAPPDATA%\MyCat\logs.
+- This is a Windows desktop prototype with the current My Cat runtime art pack.
+- The default package is self-contained and should not require a .NET install.
 - If something breaks, note what you clicked, whether the tray icon remained,
-  and whether the app was still visible.
+  whether the app was still visible, and attach the newest log file if possible.
