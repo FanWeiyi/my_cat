@@ -59,6 +59,8 @@ if ($publishedFrameCount -ne $sourceFrameCount) {
 Copy-Item -Force (Join-Path $workspace "docs\playtest-runbook.txt") (Join-Path $publishDir "PLAYTEST.txt")
 Copy-Item -Force (Join-Path $workspace "docs\playtest-guide.md") (Join-Path $publishDir "playtest-guide.md")
 Copy-Item -Force (Join-Path $workspace "docs\playtest-feedback.md") (Join-Path $publishDir "playtest-feedback.md")
+Copy-Item -Force (Join-Path $workspace "scripts\install-playtest.cmd") (Join-Path $publishDir "Install-MyCat.cmd")
+Copy-Item -Force (Join-Path $workspace "scripts\install-playtest-shortcuts.ps1") (Join-Path $publishDir "install-shortcuts.ps1")
 
 if (Test-Path -LiteralPath $zipPath) {
     Remove-Item -LiteralPath $zipPath -Force

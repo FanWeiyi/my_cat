@@ -1,3 +1,4 @@
+using System.IO;
 using Drawing = System.Drawing;
 using Forms = System.Windows.Forms;
 
@@ -6,6 +7,7 @@ namespace MyCat.WindowsShell;
 internal sealed class TrayIconHost : IDisposable
 {
     private readonly Forms.ContextMenuStrip _menu = new();
+    private readonly Drawing.Icon _icon;
     private readonly Forms.NotifyIcon _notifyIcon;
     private readonly Forms.ToolStripMenuItem _quietModeItem;
     private bool _syncingQuietMode;
@@ -44,10 +46,11 @@ internal sealed class TrayIconHost : IDisposable
         _menu.Items.Add("打开日志目录", null, (_, _) => openLogDirectory());
         _menu.Items.Add(new Forms.ToolStripSeparator());
         _menu.Items.Add("退出", null, (_, _) => exit());
+        _icon = LoadAppIcon();
         _notifyIcon = new Forms.NotifyIcon
         {
             ContextMenuStrip = _menu,
-            Icon = Drawing.SystemIcons.Application,
+            Icon = _icon,
             Text = $"{ProductInfo.Name} {ProductInfo.Version}",
             Visible = true
         };
@@ -57,6 +60,7 @@ internal sealed class TrayIconHost : IDisposable
     {
         _notifyIcon.Visible = false;
         _notifyIcon.Dispose();
+        _icon.Dispose();
         _menu.Dispose();
     }
 
@@ -65,5 +69,21 @@ internal sealed class TrayIconHost : IDisposable
         _syncingQuietMode = true;
         _quietModeItem.Checked = enabled;
         _syncingQuietMode = false;
+    }
+
+    private static Drawing.Icon LoadAppIcon()
+    {
+        var iconPath = Path.Combine(AppContext.BaseDirectory, "assets", "my-cat.ico");
+        try
+        {
+            return File.Exists(iconPath)
+                ? new Drawing.Icon(iconPath)
+                : (Drawing.Icon)Drawing.SystemIcons.Application.Clone();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            AppLogger.LogException("TrayIconLoadFailed", ex);
+            return (Drawing.Icon)Drawing.SystemIcons.Application.Clone();
+        }
     }
 }

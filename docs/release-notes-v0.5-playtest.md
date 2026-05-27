@@ -1,38 +1,42 @@
-# My Cat V0.5 Playtest
+# My Cat 可试玩预发布版
 
-This is a pre-release playtest build for early Windows testers.
+这是一版面向早期测试用户的 Windows 试玩包。
 
-## What's new
+## 本版更新
 
-- Added behavior rhythm settings.
-- Added and refined the drag-lift desktop interaction.
-- Added local app logs and crash logs under `%LOCALAPPDATA%\MyCat\logs`.
-- Added tray menu entries for About My Cat, opening the data folder, and opening the log folder.
-- The playtest zip includes all current runtime My Cat art frames required by the app.
+- 新增可爱 Q 版小猫应用图标。
+- exe 图标、托盘图标、桌面快捷方式和开始菜单快捷方式统一使用 My Cat 小猫图标。
+- zip 内新增 `Install-MyCat.cmd`，可一键创建桌面和开始菜单快捷方式。
+- 仍可直接双击 `MyCat.WindowsShell.exe` 运行。
+- 新增行为节奏设置。
+- 新增/优化拖动提起体验。
+- 新增本地日志和崩溃日志，位置：`%LOCALAPPDATA%\MyCat\logs`。
+- 托盘菜单新增关于信息、打开数据目录、打开日志目录。
+- 试玩包包含当前运行所需的全部 My Cat 美术帧。
 
-## Known limits
+## 已知限制
 
-- No installer yet.
-- No startup-on-login option yet.
-- No auto-update yet.
-- No cloud sync.
-- No crash upload.
-- No multiple cats.
-- No user-imported custom cats.
+- 暂无正式安装器。
+- 暂不开机自启。
+- 暂无自动更新。
+- 暂无云同步。
+- 暂无崩溃上传。
+- 暂不支持多猫。
+- 暂不支持用户导入自定义猫。
 
-## Local data
+## 本地数据
 
-My Cat stores prototype data under:
+My Cat 的本地数据保存在：
 
 ```text
 %LOCALAPPDATA%\MyCat
 ```
 
-To clear local data, close My Cat and delete that folder.
+如果需要清除本地数据，请先退出 My Cat，再删除这个文件夹。
 
-## Feedback
+## 反馈方式
 
-Use the included `playtest-feedback.md` form. For crashes or startup issues, include the newest file from:
+请使用压缩包内的 `playtest-feedback.md` 记录反馈。若遇到启动失败、崩溃或退出异常，请附带下面目录里的最新日志：
 
 ```text
 %LOCALAPPDATA%\MyCat\logs
