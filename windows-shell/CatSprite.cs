@@ -56,18 +56,26 @@ internal sealed class CatSprite : FrameworkElement
 
     private ImageSource LoadFrame(string path)
     {
-        if (!File.Exists(path))
+        try
         {
-            throw new FileNotFoundException("A cat animation frame is missing.", path);
-        }
+            if (!File.Exists(path))
+            {
+                throw new FileNotFoundException("A cat animation frame is missing.", path);
+            }
 
-        var image = new BitmapImage();
-        image.BeginInit();
-        image.CacheOption = BitmapCacheOption.OnLoad;
-        image.UriSource = new Uri(path, UriKind.Absolute);
-        image.EndInit();
-        image.Freeze();
-        _frameCache.Add(path, image);
-        return image;
+            var image = new BitmapImage();
+            image.BeginInit();
+            image.CacheOption = BitmapCacheOption.OnLoad;
+            image.UriSource = new Uri(path, UriKind.Absolute);
+            image.EndInit();
+            image.Freeze();
+            _frameCache.Add(path, image);
+            return image;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException or UriFormatException)
+        {
+            AppLogger.LogException("AssetFrameLoadFailed", ex);
+            throw;
+        }
     }
 }

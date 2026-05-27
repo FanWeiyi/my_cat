@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
@@ -47,10 +48,10 @@ internal sealed class DesktopCatWindow : Window
     private readonly CatBehaviorController _behavior = new();
     private readonly ContextMenu _catMenu;
     private readonly DesktopEnvironmentService _environment = new();
-    private readonly JsonCatEventStore _eventStore = new(GetEventStorePath());
-    private readonly JsonCatLearningStateStore _learningStateStore = new(GetLearningStateStorePath());
-    private readonly JsonCatInteractionMetricsStore _metricsStore = new(GetMetricsStorePath());
-    private readonly JsonCatBehaviorSettingsStore _behaviorSettingsStore = new(GetBehaviorSettingsStorePath());
+    private readonly JsonCatEventStore _eventStore = new(AppPaths.EventStorePath);
+    private readonly JsonCatLearningStateStore _learningStateStore = new(AppPaths.LearningStateStorePath);
+    private readonly JsonCatInteractionMetricsStore _metricsStore = new(AppPaths.MetricsStorePath);
+    private readonly JsonCatBehaviorSettingsStore _behaviorSettingsStore = new(AppPaths.BehaviorSettingsStorePath);
     private readonly Border _feedbackBubble;
     private readonly TextBlock _feedbackText = new();
     private readonly Random _random = new();
@@ -88,7 +89,7 @@ internal sealed class DesktopCatWindow : Window
 
     public DesktopCatWindow()
     {
-        Title = "My Cat";
+        Title = ProductInfo.Name;
         Width = 184;
         Height = 168;
         AllowsTransparency = true;
@@ -98,7 +99,7 @@ internal sealed class DesktopCatWindow : Window
         ShowInTaskbar = false;
         Topmost = true;
 
-        _animationPlayer = new CatAnimationPlayer(new CatAnimationCatalog(), _sprite);
+        _animationPlayer = new CatAnimationPlayer(CreateAnimationCatalog(), _sprite);
         _catMenu = CreateCatMenu();
         _sprite.ContextMenu = _catMenu;
         _feedbackBubble = CreateFeedbackBubble();
@@ -107,6 +108,9 @@ internal sealed class DesktopCatWindow : Window
             eventType => Dispatcher.BeginInvoke(() => Record(eventType, CatEventSource.TrayMenu)),
             enabled => Dispatcher.BeginInvoke(() => SetQuietMode(enabled)),
             () => Dispatcher.BeginInvoke(OpenBehaviorSettings),
+            () => Dispatcher.BeginInvoke(ShowAbout),
+            () => Dispatcher.BeginInvoke(() => OpenDirectory(AppPaths.DataDirectory, "数据目录")),
+            () => Dispatcher.BeginInvoke(() => OpenDirectory(AppPaths.LogDirectory, "日志目录")),
             () => Dispatcher.Invoke(Close));
         _feedbackTimer = new DispatcherTimer(DispatcherPriority.Background)
         {
@@ -127,8 +131,22 @@ internal sealed class DesktopCatWindow : Window
         _sprite.MouseEnter += HandleCatMouseEnter;
     }
 
+    private static CatAnimationCatalog CreateAnimationCatalog()
+    {
+        try
+        {
+            return new CatAnimationCatalog();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            AppLogger.LogException("AssetCatalogLoadFailed", ex);
+            throw;
+        }
+    }
+
     private void HandleLoaded(object sender, RoutedEventArgs e)
     {
+        AppLogger.Log("WindowLoaded");
         LoadBehaviorSettings();
         LoadLearningState();
         LoadMetrics();
@@ -144,6 +162,7 @@ internal sealed class DesktopCatWindow : Window
 
     private void HandleClosed(object? sender, EventArgs e)
     {
+        AppLogger.Log("WindowClosed");
         _tickTimer.Stop();
         _feedbackTimer.Stop();
         _animationPlayer.Dispose();
@@ -579,6 +598,7 @@ internal sealed class DesktopCatWindow : Window
         }
         catch (Exception ex)
         {
+            AppLogger.LogException("BehaviorSettingsOpenFailed", ex);
             _behaviorSettingsWindow = null;
             System.Windows.MessageBox.Show(
                 this,
@@ -614,12 +634,14 @@ internal sealed class DesktopCatWindow : Window
                 _ => "已记下"
             });
         }
-        catch (IOException)
+        catch (IOException ex)
         {
+            AppLogger.LogException("RecordSaveFailed", ex);
             ShowFeedback("这次没记上");
         }
-        catch (UnauthorizedAccessException)
+        catch (UnauthorizedAccessException ex)
         {
+            AppLogger.LogException("RecordSaveFailed", ex);
             ShowFeedback("这次没记上");
         }
     }
@@ -634,8 +656,21 @@ internal sealed class DesktopCatWindow : Window
 
     private void LoadLearningState()
     {
-        RefreshHabitProfile();
-        _learningFeedback = new CatLearningFeedbackTracker(_learningStateStore.Read().SeenFeedbackKeys);
+        try
+        {
+            RefreshHabitProfile();
+            _learningFeedback = new CatLearningFeedbackTracker(_learningStateStore.Read().SeenFeedbackKeys);
+        }
+        catch (IOException ex)
+        {
+            AppLogger.LogException("LearningStateLoadFailed", ex);
+            _learningFeedback = new CatLearningFeedbackTracker();
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            AppLogger.LogException("LearningStateLoadFailed", ex);
+            _learningFeedback = new CatLearningFeedbackTracker();
+        }
     }
 
     private void LoadBehaviorSettings()
@@ -645,13 +680,15 @@ internal sealed class DesktopCatWindow : Window
             _behaviorSettings = _behaviorSettingsStore.Read();
             _behavior.BehaviorSettings = _behaviorSettings;
         }
-        catch (IOException)
+        catch (IOException ex)
         {
+            AppLogger.LogException("BehaviorSettingsLoadFailed", ex);
             _behaviorSettings = CatBehaviorSettings.Empty;
             _behavior.BehaviorSettings = _behaviorSettings;
         }
-        catch (UnauthorizedAccessException)
+        catch (UnauthorizedAccessException ex)
         {
+            AppLogger.LogException("BehaviorSettingsLoadFailed", ex);
             _behaviorSettings = CatBehaviorSettings.Empty;
             _behavior.BehaviorSettings = _behaviorSettings;
         }
@@ -663,12 +700,14 @@ internal sealed class DesktopCatWindow : Window
         {
             _metrics = _metricsStore.Read();
         }
-        catch (IOException)
+        catch (IOException ex)
         {
+            AppLogger.LogException("MetricsLoadFailed", ex);
             _metrics = CatInteractionMetrics.Empty;
         }
-        catch (UnauthorizedAccessException)
+        catch (UnauthorizedAccessException ex)
         {
+            AppLogger.LogException("MetricsLoadFailed", ex);
             _metrics = CatInteractionMetrics.Empty;
         }
     }
@@ -681,7 +720,21 @@ internal sealed class DesktopCatWindow : Window
 
     private void SaveBehaviorSettings(CatBehaviorSettings settings)
     {
-        _behaviorSettingsStore.Write(settings);
+        try
+        {
+            _behaviorSettingsStore.Write(settings);
+        }
+        catch (IOException ex)
+        {
+            AppLogger.LogException("BehaviorSettingsSaveFailed", ex);
+            throw;
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            AppLogger.LogException("BehaviorSettingsSaveFailed", ex);
+            throw;
+        }
+
         _behaviorSettings = settings;
         _behavior.BehaviorSettings = settings;
         ShowFeedback("作息已更新");
@@ -689,7 +742,20 @@ internal sealed class DesktopCatWindow : Window
 
     private void SaveLearningState()
     {
-        _learningStateStore.Write(new CatLearningState(_learningFeedback.SeenKeys.OrderBy(key => key).ToArray()));
+        try
+        {
+            _learningStateStore.Write(new CatLearningState(_learningFeedback.SeenKeys.OrderBy(key => key).ToArray()));
+        }
+        catch (IOException ex)
+        {
+            AppLogger.LogException("LearningStateSaveFailed", ex);
+            throw;
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            AppLogger.LogException("LearningStateSaveFailed", ex);
+            throw;
+        }
     }
 
     private void CountMetric(Func<CatInteractionMetrics, CatInteractionMetrics> count)
@@ -699,11 +765,13 @@ internal sealed class DesktopCatWindow : Window
             _metrics = count(_metrics);
             _metricsStore.Write(_metrics);
         }
-        catch (IOException)
+        catch (IOException ex)
         {
+            AppLogger.LogException("MetricsSaveFailed", ex);
         }
-        catch (UnauthorizedAccessException)
+        catch (UnauthorizedAccessException ex)
         {
+            AppLogger.LogException("MetricsSaveFailed", ex);
         }
     }
 
@@ -725,28 +793,34 @@ internal sealed class DesktopCatWindow : Window
         ShowFeedback(enabled ? "安静陪着你" : "回来陪你");
     }
 
-    private static string GetEventStorePath()
+    private void ShowAbout()
     {
-        var localData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        return Path.Combine(localData, "MyCat", "events.json");
+        System.Windows.MessageBox.Show(
+            this,
+            $"{ProductInfo.Name} {ProductInfo.Version}{Environment.NewLine}{Environment.NewLine}" +
+            $"数据目录：{AppPaths.DataDirectory}{Environment.NewLine}" +
+            $"日志目录：{AppPaths.LogDirectory}",
+            $"关于 {ProductInfo.Name}",
+            MessageBoxButton.OK,
+            MessageBoxImage.Information);
     }
 
-    private static string GetLearningStateStorePath()
+    private void OpenDirectory(string path, string label)
     {
-        var localData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        return Path.Combine(localData, "MyCat", "learning-state.json");
-    }
-
-    private static string GetMetricsStorePath()
-    {
-        var localData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        return Path.Combine(localData, "MyCat", "interaction-metrics.json");
-    }
-
-    private static string GetBehaviorSettingsStorePath()
-    {
-        var localData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        return Path.Combine(localData, "MyCat", "behavior-settings.json");
+        try
+        {
+            Directory.CreateDirectory(path);
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = path,
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            AppLogger.LogException($"{label}OpenFailed", ex);
+            ShowFeedback($"{label}没有打开");
+        }
     }
 
     private void PositionNearWorkArea()
