@@ -14,6 +14,8 @@
 | Task | Done without help | Notes |
 |---|---|---|
 | Start from extracted zip |  |  |
+| Run Install-MyCat.cmd |  |  |
+| Start from desktop shortcut |  |  |
 | Click the cat |  |  |
 | Drag it to a new spot |  |  |
 | Notice mouse response |  |  |
@@ -32,15 +34,17 @@
 ## V0.5 Questions
 
 1. What did the cat feel like while it stayed on your desktop?
-2. Were the behavior rhythm settings understandable?
-3. Did dragging and lifting the cat feel natural?
-4. Did the cat disturb taskbar or window operations?
-5. Did quiet mode feel calmer rather than broken?
-6. Would you keep My Cat open during a real work session?
-7. Which action felt cutest or most alive?
-8. Which action felt confusing, stiff, or distracting?
-9. Did "tell it" make sense and did the cat response help?
-10. What would make it feel more like your own cat?
+2. Did the app icon feel cute and consistent with the cat on the desktop?
+3. Were the desktop and Start Menu shortcuts easy to understand?
+4. Were the behavior rhythm settings understandable?
+5. Did dragging and lifting the cat feel natural?
+6. Did the cat disturb taskbar or window operations?
+7. Did quiet mode feel calmer rather than broken?
+8. Would you keep My Cat open during a real work session?
+9. Which action felt cutest or most alive?
+10. Which action felt confusing, stiff, or distracting?
+11. Did "tell it" make sense and did the cat response help?
+12. What would make it feel more like your own cat?
 
 ## Signals
 
@@ -48,6 +52,8 @@
 - Moved it on purpose: yes / no
 - Noticed a living desktop moment: yes / no
 - Behavior rhythm settings made sense: yes / no / unsure
+- App icon felt cute and clear: yes / no / unsure
+- Shortcuts worked: yes / no
 - Drag lift felt natural: yes / no / unsure
 - Desktop interference observed: yes / no
 - Crash, freeze, or exit failure observed: yes / no

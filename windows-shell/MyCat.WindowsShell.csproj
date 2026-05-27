@@ -7,6 +7,7 @@
     <AssemblyVersion>0.5.0.0</AssemblyVersion>
     <FileVersion>0.5.0.0</FileVersion>
     <InformationalVersion>0.5.0-playtest.1</InformationalVersion>
+    <ApplicationIcon>assets\my-cat.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\cat-assets\MyCat.CatAssets.csproj" />
@@ -20,6 +21,10 @@
     </Content>
     <Content Include="..\cat-assets\cats\my-cat\**\frame_*.png">
       <Link>cats\my-cat\%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+    <Content Include="assets\my-cat.ico">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </Content>
