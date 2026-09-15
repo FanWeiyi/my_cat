@@ -9,18 +9,25 @@ public sealed class CatAnimationCatalog
     public CatAnimationCatalog(string? packRoot = null)
     {
         PackRoot = Path.GetFullPath(packRoot ?? Path.Combine(AppContext.BaseDirectory, "cats", "my-cat"));
+        AssetRoot = Path.GetFullPath(Path.Combine(PackRoot, "..", ".."));
+        YarnBellToyPath = Path.Combine(AssetRoot, "toys", "yarn_bell.png");
         Manifest = CatArtPackManifest.Load(Path.Combine(PackRoot, "manifest.json"));
         CatArtPackValidator.Validate(PackRoot, Manifest);
+        CatArtPackValidator.ValidateToyAsset(AssetRoot);
         _clips = Manifest.Clips.ToDictionary(CatArtPackValidator.ClipKey, CreateClip, StringComparer.Ordinal);
     }
 
     public string PackRoot { get; }
 
+    public string AssetRoot { get; }
+
+    public string YarnBellToyPath { get; }
+
     public CatArtPackManifest Manifest { get; }
 
     public CatAnimationClip Get(CatActionId actionId, bool facingLeft = true)
     {
-        var direction = actionId == CatActionId.WalkSlow
+        var direction = actionId == CatActionId.WalkSlow || actionId == CatActionId.PlayChase
             ? facingLeft ? "left" : "right"
             : null;
         var key = CatArtPackValidator.ClipKey(actionId.Value, direction);

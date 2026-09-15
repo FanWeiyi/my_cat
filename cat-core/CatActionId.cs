@@ -18,6 +18,10 @@ public readonly record struct CatActionId(string Value)
     public static readonly CatActionId MouseTrackRight = new("mouse_track_right");
     public static readonly CatActionId MouseTrackUp = new("mouse_track_up");
     public static readonly CatActionId MouseTrackDown = new("mouse_track_down");
+    public static readonly CatActionId PlayReady = new("play_ready");
+    public static readonly CatActionId PlayChase = new("play_chase");
+    public static readonly CatActionId PlayCatch = new("play_catch");
+    public static readonly CatActionId PlayMiss = new("play_miss");
     public static readonly CatActionId WindowLinger = new("window_linger");
     public static readonly CatActionId WindowStartle = new("window_startle");
     public static readonly CatActionId WindowAvoid = new("window_avoid");

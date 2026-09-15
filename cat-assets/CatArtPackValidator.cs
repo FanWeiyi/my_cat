@@ -25,6 +25,11 @@ public static class CatArtPackValidator
         new(CatActionId.MouseTrackRight, null, false),
         new(CatActionId.MouseTrackUp, null, false),
         new(CatActionId.MouseTrackDown, null, false),
+        new(CatActionId.PlayReady, null, false),
+        new(CatActionId.PlayChase, "left", true),
+        new(CatActionId.PlayChase, "right", true),
+        new(CatActionId.PlayCatch, null, false),
+        new(CatActionId.PlayMiss, null, false),
         new(CatActionId.WindowLinger, null, true),
         new(CatActionId.WindowStartle, null, false),
         new(CatActionId.WindowAvoid, null, false),
@@ -68,6 +73,17 @@ public static class CatArtPackValidator
 
             ValidateClip(packRoot, clip, required);
         }
+    }
+
+    public static void ValidateToyAsset(string assetRoot)
+    {
+        var toyFile = Path.Combine(assetRoot, "toys", "yarn_bell.png");
+        if (!File.Exists(toyFile))
+        {
+            throw new FileNotFoundException("The yarn bell toy asset is missing.", toyFile);
+        }
+
+        ValidatePng(toyFile, expectedSize: 96, "toy 'yarn_bell'");
     }
 
     internal static string ClipKey(CatArtPackClipManifest clip) => ClipKey(clip.ActionId, clip.Direction);
@@ -122,7 +138,7 @@ public static class CatArtPackValidator
 
         foreach (var frameFile in expectedFiles)
         {
-            ValidatePngFrame(frameFile, clip);
+            ValidatePng(frameFile, ExpectedCanvasSize, $"'{ClipKey(clip)}'");
         }
 
         var frameFiles = Directory.GetFiles(clipRoot, "frame_*.png", SearchOption.TopDirectoryOnly);
@@ -150,32 +166,32 @@ public static class CatArtPackValidator
         return clipRoot;
     }
 
-    private static void ValidatePngFrame(string frameFile, CatArtPackClipManifest clip)
+    private static void ValidatePng(string file, int expectedSize, string label)
     {
-        using var stream = File.OpenRead(frameFile);
+        using var stream = File.OpenRead(file);
         using var reader = new BinaryReader(stream);
         var signature = reader.ReadBytes(8);
         var pngSignature = new byte[] { 137, 80, 78, 71, 13, 10, 26, 10 };
         if (!signature.SequenceEqual(pngSignature))
         {
-            throw new InvalidDataException($"The frame '{frameFile}' for '{ClipKey(clip)}' is not a PNG.");
+            throw new InvalidDataException($"The asset '{file}' for {label} is not a PNG.");
         }
 
         var chunkLength = ReadBigEndianInt32(reader);
         var chunkType = new string(reader.ReadChars(4));
         if (chunkLength != 13 || chunkType != "IHDR")
         {
-            throw new InvalidDataException($"The frame '{frameFile}' for '{ClipKey(clip)}' has an invalid PNG header.");
+            throw new InvalidDataException($"The asset '{file}' for {label} has an invalid PNG header.");
         }
 
         var width = ReadBigEndianInt32(reader);
         var height = ReadBigEndianInt32(reader);
         _ = reader.ReadByte(); // bit depth
         var colorType = reader.ReadByte();
-        if (width != ExpectedCanvasSize || height != ExpectedCanvasSize || colorType != 6)
+        if (width != expectedSize || height != expectedSize || colorType != 6)
         {
             throw new InvalidDataException(
-                $"The frame '{frameFile}' for '{ClipKey(clip)}' must be a {ExpectedCanvasSize} x {ExpectedCanvasSize} RGBA PNG.");
+                $"The asset '{file}' for {label} must be a {expectedSize} x {expectedSize} RGBA PNG.");
         }
     }
 

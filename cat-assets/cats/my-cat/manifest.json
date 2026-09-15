@@ -146,6 +146,38 @@
       "frameDurationMilliseconds": 130
     },
     {
+      "actionId": "play_ready",
+      "directory": "play_ready",
+      "loop": false,
+      "frameDurationMilliseconds": 100
+    },
+    {
+      "actionId": "play_chase",
+      "direction": "left",
+      "directory": "play_chase_left",
+      "loop": true,
+      "frameDurationMilliseconds": 70
+    },
+    {
+      "actionId": "play_chase",
+      "direction": "right",
+      "directory": "play_chase_right",
+      "loop": true,
+      "frameDurationMilliseconds": 70
+    },
+    {
+      "actionId": "play_catch",
+      "directory": "play_catch",
+      "loop": false,
+      "frameDurationMilliseconds": 90
+    },
+    {
+      "actionId": "play_miss",
+      "directory": "play_miss",
+      "loop": false,
+      "frameDurationMilliseconds": 120
+    },
+    {
       "actionId": "window_linger",
       "directory": "window_linger",
       "loop": true,

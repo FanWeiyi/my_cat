@@ -1,4 +1,4 @@
-My Cat V0.5 Playtest
+My Cat V0.6 Playtest
 
 Start:
 1. Double-click Install-MyCat.cmd to create desktop and Start Menu shortcuts.
@@ -13,7 +13,9 @@ Try:
 - Record the same kind of observation three times in one time period.
 - Open behavior rhythm settings and adjust one time period.
 - Turn quiet mode on and off from the cat or tray menu.
-- Open About My Cat from the tray and confirm the version says V0.5 Playtest.
+- Choose "和它玩一会儿", move the yarn bell toy, and let the cat catch it once.
+- Start play again and right-click once to stop it early.
+- Open About My Cat from the tray and confirm the version says V0.6 Playtest.
 - Open the data and log folders from the tray.
 - Confirm the desktop shortcut, Start Menu shortcut, app exe, and tray all use the My Cat icon.
 - Leave quiet mode off long enough to catch an occasional window-side stay.

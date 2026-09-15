@@ -10,6 +10,7 @@ internal sealed class CatAnimationPlayer : IDisposable
     private readonly CatSprite _sprite;
     private readonly DispatcherTimer _frameTimer;
     private CatAnimationClip? _clip;
+    private CatActionId? _actionId;
     private int _frameIndex;
 
     public CatAnimationPlayer(CatAnimationCatalog catalog, CatSprite sprite)
@@ -22,10 +23,33 @@ internal sealed class CatAnimationPlayer : IDisposable
 
     public void Play(CatActionId actionId)
     {
+        _actionId = actionId;
         _clip = _catalog.Get(actionId, _sprite.FacingLeft);
         _frameIndex = 0;
         ShowFrame();
         _frameTimer.Start();
+    }
+
+    public void RefreshFacing()
+    {
+        if (_actionId is null)
+        {
+            return;
+        }
+
+        var nextClip = _catalog.Get(_actionId.Value, _sprite.FacingLeft);
+        if (ReferenceEquals(_clip, nextClip))
+        {
+            return;
+        }
+
+        _clip = nextClip;
+        if (_frameIndex >= _clip.Frames.Count)
+        {
+            _frameIndex = 0;
+        }
+
+        ShowFrame();
     }
 
     public void Dispose()

@@ -6,7 +6,7 @@
     <ProjectReference Include="..\cat-core\MyCat.CatCore.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <Content Include="cats\my-cat\manifest.json;cats\my-cat\**\frame_*.png">
+    <Content Include="cats\my-cat\manifest.json;cats\my-cat\**\frame_*.png;toys\**\*.png">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </Content>

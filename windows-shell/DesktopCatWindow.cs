@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -34,7 +35,12 @@ internal sealed class DesktopCatWindow : Window
     private const double MouseTrackInitialDeadZone = 3;
     private const double WindowEdgeAwarenessDistance = 54;
     private const double TaskbarMouseExitDistance = 72;
+    private const double PlayStep = 14.0;
+    private const double CatchDistance = 58;
+    private const double ToyWindowSize = 48;
+    private const int VkRButton = 0x02;
     private static readonly TimeSpan DragPlacementMemory = TimeSpan.FromMinutes(3);
+    private static readonly TimeSpan PlayDuration = TimeSpan.FromSeconds(20);
     private static readonly TimeSpan MouseNoticeCooldown = TimeSpan.FromSeconds(18);
     private static readonly TimeSpan WindowVisitCooldown = TimeSpan.FromMinutes(3);
     private static readonly TimeSpan WindowVisitRetry = TimeSpan.FromSeconds(40);
@@ -45,6 +51,7 @@ internal sealed class DesktopCatWindow : Window
     private static readonly TimeSpan IdleMouseGlanceRandomDelay = TimeSpan.FromSeconds(16);
     private static readonly TimeSpan IdleMouseGlanceDuration = TimeSpan.FromSeconds(3);
     private readonly CatAnimationPlayer _animationPlayer;
+    private readonly CatAnimationCatalog _animationCatalog;
     private readonly CatBehaviorController _behavior = new();
     private readonly ContextMenu _catMenu;
     private readonly DesktopEnvironmentService _environment = new();
@@ -64,6 +71,7 @@ internal sealed class DesktopCatWindow : Window
     private CatInteractionMetrics _metrics = CatInteractionMetrics.Empty;
     private BehaviorSettingsWindow? _behaviorSettingsWindow;
     private MenuItem? _quietModeMenuItem;
+    private MenuItem? _playMenuItem;
     private Point _dragPointerOffset;
     private Point _dragStartScreen;
     private Point _walkTarget;
@@ -75,11 +83,15 @@ internal sealed class DesktopCatWindow : Window
     private DateTimeOffset _nextTaskbarInterestAt;
     private DateTimeOffset _nextIdleMouseGlanceAt = DateTimeOffset.MaxValue;
     private DateTimeOffset _dragHoldAt;
+    private DateTimeOffset _playEndsAt;
     private DateTimeOffset? _idleMouseGlanceEndsAt;
     private DesktopWindowSnapshot? _lastForegroundWindow;
     private CatActionId _mouseTrackActionId = CatActionId.MouseTrackRight;
+    private ToyCursorWindow? _toyWindow;
+    private Point _toyPosition;
     private bool _pointerDown;
     private bool _dragging;
+    private bool _playModeActive;
     private bool _pendingMouseTrackAfterPet;
     private bool _idleMouseGlanceActive;
     private bool _walkEndMouseGlancePending;
@@ -99,7 +111,8 @@ internal sealed class DesktopCatWindow : Window
         ShowInTaskbar = false;
         Topmost = true;
 
-        _animationPlayer = new CatAnimationPlayer(CreateAnimationCatalog(), _sprite);
+        _animationCatalog = CreateAnimationCatalog();
+        _animationPlayer = new CatAnimationPlayer(_animationCatalog, _sprite);
         _catMenu = CreateCatMenu();
         _sprite.ContextMenu = _catMenu;
         _feedbackBubble = CreateFeedbackBubble();
@@ -129,6 +142,7 @@ internal sealed class DesktopCatWindow : Window
         _sprite.MouseLeftButtonUp += HandleCatPointerUp;
         _sprite.MouseMove += HandleCatPointerMove;
         _sprite.MouseEnter += HandleCatMouseEnter;
+        _sprite.PreviewMouseRightButtonDown += HandleCatRightButtonDown;
     }
 
     private static CatAnimationCatalog CreateAnimationCatalog()
@@ -165,12 +179,20 @@ internal sealed class DesktopCatWindow : Window
         AppLogger.Log("WindowClosed");
         _tickTimer.Stop();
         _feedbackTimer.Stop();
+        CloseToyWindow();
         _animationPlayer.Dispose();
         _trayIcon.Dispose();
     }
 
     private void HandleCatPointerDown(object sender, MouseButtonEventArgs e)
     {
+        if (_playModeActive)
+        {
+            StopPlayWithMiss(DateTimeOffset.Now, "下次再玩");
+            e.Handled = true;
+            return;
+        }
+
         _catMenu.IsOpen = false;
         _pendingMouseTrackAfterPet = false;
         _pointerDown = true;
@@ -253,7 +275,7 @@ internal sealed class DesktopCatWindow : Window
     private void HandleCatMouseEnter(object sender, MouseEventArgs e)
     {
         var now = DateTimeOffset.Now;
-        if (_pointerDown || now < _nextMouseNoticeAt)
+        if (_pointerDown || _playModeActive || now < _nextMouseNoticeAt)
         {
             return;
         }
@@ -275,6 +297,17 @@ internal sealed class DesktopCatWindow : Window
         _feedbackBubble.Visibility = Visibility.Collapsed;
     }
 
+    private void HandleCatRightButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (!_playModeActive)
+        {
+            return;
+        }
+
+        StopPlayWithMiss(DateTimeOffset.Now, "下次再玩");
+        e.Handled = true;
+    }
+
     private void HandleTick(object? sender, EventArgs e)
     {
         if (_pointerDown)
@@ -283,6 +316,12 @@ internal sealed class DesktopCatWindow : Window
         }
 
         var now = DateTimeOffset.Now;
+        if (_playModeActive)
+        {
+            HandlePlayTick(now);
+            return;
+        }
+
         if (_behavior.Current?.State is CatState.TaskbarVisit && IsMouseNearTaskbar())
         {
             _nextTaskbarInterestAt = NextTaskbarInterestAt(now);
@@ -491,6 +530,199 @@ internal sealed class DesktopCatWindow : Window
         Apply(_behavior.ReachWalkEdge(now));
     }
 
+    private void TogglePlayMode()
+    {
+        if (_playModeActive)
+        {
+            StopPlayWithMiss(DateTimeOffset.Now, "下次再玩");
+            return;
+        }
+
+        StartPlayMode(DateTimeOffset.Now);
+    }
+
+    private void StartPlayMode(DateTimeOffset now)
+    {
+        if (_dragging || _pointerDown)
+        {
+            return;
+        }
+
+        _catMenu.IsOpen = false;
+        ClearIdleMouseGlance();
+        _pendingMouseTrackAfterPet = false;
+        var transition = _behavior.StartPlay(now);
+        if (transition is null)
+        {
+            ShowFeedback(_behavior.QuietMode ? "现在安静陪着你" : "等放下再玩");
+            return;
+        }
+
+        _playModeActive = true;
+        _playEndsAt = now + PlayDuration;
+        EnsureToyWindow();
+        UpdateToyPosition();
+        Apply(transition);
+        RefreshPlayMenu();
+    }
+
+    private void HandlePlayTick(DateTimeOffset now)
+    {
+        if ((_behavior.Current?.State is CatState.PlayReady or CatState.PlayChase) && IsRightButtonDown())
+        {
+            StopPlayWithMiss(now, "下次再玩");
+            return;
+        }
+
+        if (_behavior.QuietMode)
+        {
+            EndPlayMode();
+            Apply(_behavior.SetQuietMode(true, now));
+            return;
+        }
+
+        UpdateToyPosition();
+
+        if (_behavior.Current?.State is CatState.PlayReady)
+        {
+            var transition = _behavior.Advance(now);
+            if (transition is not null)
+            {
+                Apply(transition);
+            }
+
+            return;
+        }
+
+        if (_behavior.Current?.State is CatState.PlayChase)
+        {
+            MoveTowardToy();
+            if (Distance(CatCenter, _toyPosition) <= CatchDistance)
+            {
+                EndPlayWithTransition(_behavior.CatchToy(now), "抓到了！");
+                return;
+            }
+
+            if (now >= _playEndsAt)
+            {
+                StopPlayWithMiss(now, "下次再玩");
+            }
+
+            return;
+        }
+
+        if (_behavior.Current?.State is CatState.PlayCatch or CatState.PlayMiss)
+        {
+            var transition = _behavior.Advance(now);
+            if (transition is not null)
+            {
+                _playModeActive = false;
+                RefreshPlayMenu();
+                Apply(transition);
+            }
+
+            return;
+        }
+
+        EndPlayMode();
+    }
+
+    private void StopPlayWithMiss(DateTimeOffset now, string feedback)
+    {
+        if (!_playModeActive)
+        {
+            return;
+        }
+
+        EndPlayWithTransition(_behavior.MissToy(now), feedback);
+    }
+
+    private void EndPlayWithTransition(CatActionTransition transition, string feedback)
+    {
+        CloseToyWindow();
+        Apply(transition);
+        ShowFeedback(feedback);
+    }
+
+    private void EndPlayMode()
+    {
+        _playModeActive = false;
+        CloseToyWindow();
+        RefreshPlayMenu();
+    }
+
+    private void EnsureToyWindow()
+    {
+        if (_toyWindow is not null)
+        {
+            return;
+        }
+
+        _toyWindow = new ToyCursorWindow(_animationCatalog.YarnBellToyPath, ToyWindowSize)
+        {
+            Owner = this
+        };
+        _toyWindow.Show();
+    }
+
+    private void CloseToyWindow()
+    {
+        if (_toyWindow is null)
+        {
+            return;
+        }
+
+        _toyWindow.Close();
+        _toyWindow = null;
+    }
+
+    private void UpdateToyPosition()
+    {
+        _toyPosition = ClampToyCenter(FromDevicePoint(_environment.MouseScreenPosition));
+        _toyWindow?.MoveCenterTo(_toyPosition, _environment.FullScreenBounds);
+    }
+
+    private Point ClampToyCenter(Point candidate)
+    {
+        var screen = _environment.FullScreenBounds;
+        var half = ToyWindowSize / 2;
+        return new Point(
+            Math.Clamp(candidate.X, screen.Left + half, screen.Right - half),
+            Math.Clamp(candidate.Y, screen.Top + half, screen.Bottom - half));
+    }
+
+    private void MoveTowardToy()
+    {
+        var current = new Point(Left, Top);
+        var target = ClampToDragPosition(new Point(
+            _toyPosition.X - (Width / 2),
+            _toyPosition.Y - (Height / 2)));
+        var deltaX = target.X - current.X;
+        var deltaY = target.Y - current.Y;
+        var distance = Distance(current, target);
+        var facingLeft = _toyPosition.X < CatCenter.X;
+        if (_sprite.FacingLeft != facingLeft)
+        {
+            _sprite.FacingLeft = facingLeft;
+            _animationPlayer.RefreshFacing();
+        }
+
+        if (distance <= PlayStep)
+        {
+            Left = target.X;
+            Top = target.Y;
+            return;
+        }
+
+        var candidate = ClampToDragPosition(new Point(
+            current.X + ((deltaX / distance) * PlayStep),
+            current.Y + ((deltaY / distance) * PlayStep)));
+        Left = candidate.X;
+        Top = candidate.Y;
+    }
+
+    private Point CatCenter => new(Left + (Width / 2), Top + (Height / 2));
+
     private Grid CreateCatSurface()
     {
         var surface = new Grid
@@ -521,6 +753,9 @@ internal sealed class DesktopCatWindow : Window
             Apply(_behavior.Pet(DateTimeOffset.Now));
             CountMetric(metrics => metrics.CountClick());
         }));
+
+        _playMenuItem = MenuItem("和它玩一会儿", TogglePlayMode);
+        menu.Items.Add(_playMenuItem);
 
         var tellMenu = new MenuItem { Header = "告诉它" };
         tellMenu.Items.Add(MenuItem("我家猫在睡觉", () => Record(CatEventType.Rest, CatEventSource.DesktopCatMenu)));
@@ -570,6 +805,7 @@ internal sealed class DesktopCatWindow : Window
 
     private void OpenCatMenu()
     {
+        RefreshPlayMenu();
         _catMenu.PlacementTarget = _sprite;
         _catMenu.IsOpen = true;
     }
@@ -778,6 +1014,11 @@ internal sealed class DesktopCatWindow : Window
     private void SetQuietMode(bool enabled)
     {
         var wasQuiet = _behavior.QuietMode;
+        if (enabled && _playModeActive)
+        {
+            EndPlayMode();
+        }
+
         Apply(_behavior.SetQuietMode(enabled, DateTimeOffset.Now));
         if (_quietModeMenuItem is not null)
         {
@@ -791,6 +1032,14 @@ internal sealed class DesktopCatWindow : Window
 
         _trayIcon.SetQuietMode(enabled);
         ShowFeedback(enabled ? "安静陪着你" : "回来陪你");
+    }
+
+    private void RefreshPlayMenu()
+    {
+        if (_playMenuItem is not null)
+        {
+            _playMenuItem.Header = _playModeActive ? "停止玩耍" : "和它玩一会儿";
+        }
     }
 
     private void ShowAbout()
@@ -1283,6 +1532,11 @@ internal sealed class DesktopCatWindow : Window
         var y = second.Y - first.Y;
         return Math.Sqrt((x * x) + (y * y));
     }
+
+    private static bool IsRightButtonDown() => (GetAsyncKeyState(VkRButton) & 0x8000) != 0;
+
+    [DllImport("user32.dll")]
+    private static extern short GetAsyncKeyState(int virtualKey);
 
     private enum WalkPurpose
     {

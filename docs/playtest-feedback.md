@@ -1,11 +1,11 @@
-# My Cat V0.5 Playtest Feedback Form
+# My Cat V0.6 Playtest Feedback Form
 
 ## Session
 
 - Date:
 - Tester:
 - Windows version:
-- Package: MyCat-v0.5-playtest-win-x64.zip
+- Package: MyCat-v0.6-playtest-win-x64.zip
 - Cat owner now: yes / no
 - Session length:
 
@@ -26,12 +26,15 @@
 | Notice learning feedback |  |  |
 | Adjust behavior rhythm settings |  |  |
 | Toggle quiet mode |  |  |
+| Play with yarn bell toy |  |  |
+| Let the cat catch the toy |  |  |
+| Stop play with right-click |  |  |
 | Open About My Cat |  |  |
 | Open data folder |  |  |
 | Open log folder |  |  |
 | Exit from tray |  |  |
 
-## V0.5 Questions
+## V0.6 Questions
 
 1. What did the cat feel like while it stayed on your desktop?
 2. Did the app icon feel cute and consistent with the cat on the desktop?
@@ -44,7 +47,10 @@
 9. Which action felt cutest or most alive?
 10. Which action felt confusing, stiff, or distracting?
 11. Did "tell it" make sense and did the cat response help?
-12. What would make it feel more like your own cat?
+12. Did "和它玩一会儿" feel like the cat was interacting with you?
+13. Did the catch pose feel cute enough to be memorable?
+14. Did the miss pose feel like "还想玩" without being too sad?
+15. What would make it feel more like your own cat?
 
 ## Signals
 
@@ -56,6 +62,9 @@
 - Shortcuts worked: yes / no
 - Drag lift felt natural: yes / no / unsure
 - Desktop interference observed: yes / no
+- Yarn bell chase felt playful: yes / no / unsure
+- Catch pose felt cute: yes / no / unsure
+- Right-click stopped play cleanly: yes / no / unsure
 - Crash, freeze, or exit failure observed: yes / no
 - Log file found after the session: yes / no
 

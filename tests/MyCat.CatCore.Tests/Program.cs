@@ -21,6 +21,10 @@ internal sealed class CatBehaviorChecks
         DragDropDuration = TimeSpan.FromSeconds(1),
         MouseNoticeDuration = TimeSpan.FromSeconds(1),
         MouseTrackDuration = TimeSpan.FromSeconds(1),
+        PlayReadyDuration = TimeSpan.FromSeconds(1),
+        PlayChaseDuration = TimeSpan.FromSeconds(3),
+        PlayCatchDuration = TimeSpan.FromSeconds(1),
+        PlayMissDuration = TimeSpan.FromSeconds(1),
         WindowLingerDuration = TimeSpan.FromSeconds(1),
         WindowStartleDuration = TimeSpan.FromSeconds(1),
         WindowAvoidDuration = TimeSpan.FromSeconds(1),
@@ -40,6 +44,11 @@ internal sealed class CatBehaviorChecks
         DragLiftHoldAndDropReturnToIdle();
         MouseNoticeWaitsForIdleAndQuietMode();
         ClickMouseTrackReturnsToIdle();
+        PlayReadyFlowsIntoChase();
+        CatchToyReturnsToIdle();
+        MissToyReturnsToIdle();
+        QuietModeStopsPlay();
+        PlaySuppressesAutomaticBehavior();
         WindowLingerCanFinishAWalk();
         WindowAvoidReturnsToIdle();
         TaskbarVisitRespectsQuietMode();
@@ -185,6 +194,69 @@ internal sealed class CatBehaviorChecks
         Expect(track.ActionId == CatActionId.MouseTrackUp, "A clicked cat should briefly track the mouse direction.");
         Expect(retarget.ActionId == CatActionId.MouseTrackRight, "Mouse tracking should support live direction changes.");
         Expect(next?.State == CatState.Idle, "Mouse tracking should end in idle.");
+    }
+
+    private void PlayReadyFlowsIntoChase()
+    {
+        var controller = new CatBehaviorController(_fastOptions);
+        controller.Start(_start);
+        var ready = controller.StartPlay(_start + TimeSpan.FromSeconds(0.1));
+        var chase = controller.Advance(_start + TimeSpan.FromSeconds(1.2));
+
+        Expect(ready?.State == CatState.PlayReady, "Starting play should enter the play ready state.");
+        Expect(ready?.ActionId == CatActionId.PlayReady, "Play ready should use the ready clip.");
+        Expect(chase?.State == CatState.PlayChase, "Play ready should flow into play chase.");
+        Expect(chase?.ActionId == CatActionId.PlayChase, "Play chase should use the chase clip.");
+    }
+
+    private void CatchToyReturnsToIdle()
+    {
+        var controller = new CatBehaviorController(_fastOptions);
+        controller.Start(_start);
+        controller.StartPlay(_start + TimeSpan.FromSeconds(0.1));
+        var catchToy = controller.CatchToy(_start + TimeSpan.FromSeconds(0.2));
+        var next = controller.Advance(_start + TimeSpan.FromSeconds(1.3));
+
+        Expect(catchToy.State == CatState.PlayCatch, "Catching the toy should enter play catch.");
+        Expect(catchToy.ActionId == CatActionId.PlayCatch, "Catching the toy should use the catch clip.");
+        Expect(next?.State == CatState.Idle, "Play catch should end in idle.");
+    }
+
+    private void MissToyReturnsToIdle()
+    {
+        var controller = new CatBehaviorController(_fastOptions);
+        controller.Start(_start);
+        controller.StartPlay(_start + TimeSpan.FromSeconds(0.1));
+        var miss = controller.MissToy(_start + TimeSpan.FromSeconds(0.2));
+        var next = controller.Advance(_start + TimeSpan.FromSeconds(1.3));
+
+        Expect(miss.State == CatState.PlayMiss, "Missing the toy should enter play miss.");
+        Expect(miss.ActionId == CatActionId.PlayMiss, "Missing the toy should use the miss clip.");
+        Expect(next?.State == CatState.Idle, "Play miss should end in idle.");
+    }
+
+    private void QuietModeStopsPlay()
+    {
+        var controller = new CatBehaviorController(_fastOptions);
+        controller.Start(_start);
+        controller.StartPlay(_start + TimeSpan.FromSeconds(0.1));
+        var quiet = controller.SetQuietMode(true, _start + TimeSpan.FromSeconds(0.2));
+        var blocked = controller.StartPlay(_start + TimeSpan.FromSeconds(0.3));
+
+        Expect(quiet.State == CatState.Idle, "Quiet mode should stop play and return to idle.");
+        Expect(blocked is null, "Quiet mode should prevent starting play.");
+    }
+
+    private void PlaySuppressesAutomaticBehavior()
+    {
+        var controller = new CatBehaviorController(_fastOptions);
+        controller.Start(_start);
+        controller.StartPlay(_start + TimeSpan.FromSeconds(0.1));
+
+        Expect(controller.NoticeMouse(_start + TimeSpan.FromSeconds(0.2)) is null, "Play should suppress mouse notice.");
+        Expect(controller.LingerByWindow(_start + TimeSpan.FromSeconds(0.3)) is null, "Play should suppress window lingering.");
+        Expect(controller.VisitTaskbar(_start + TimeSpan.FromSeconds(0.4), lie: false) is null, "Play should suppress taskbar visits.");
+        Expect(controller.Advance(_start + TimeSpan.FromSeconds(0.5)) is null, "Automatic behavior should not interrupt play before its duration ends.");
     }
 
     private void ObservationReactionFollowsTheRecordedEvent()
@@ -544,6 +616,10 @@ internal sealed class CatBehaviorChecks
             CatActionId.MouseTrackRight,
             CatActionId.MouseTrackUp,
             CatActionId.MouseTrackDown,
+            CatActionId.PlayReady,
+            CatActionId.PlayChase,
+            CatActionId.PlayCatch,
+            CatActionId.PlayMiss,
             CatActionId.WindowLinger,
             CatActionId.WindowStartle,
             CatActionId.WindowAvoid,
@@ -561,10 +637,17 @@ internal sealed class CatBehaviorChecks
 
         var leftWalk = catalog.Get(CatActionId.WalkSlow, facingLeft: true);
         var rightWalk = catalog.Get(CatActionId.WalkSlow, facingLeft: false);
+        var leftChase = catalog.Get(CatActionId.PlayChase, facingLeft: true);
+        var rightChase = catalog.Get(CatActionId.PlayChase, facingLeft: false);
         Expect(leftWalk.Frames.Count == 16, "The left walk clip should load 16 art frames.");
         Expect(rightWalk.Frames.Count == 16, "The right walk clip should load 16 art frames.");
         Expect(leftWalk.Frames[0].Key.Contains("walk_slow_left"), "Left walks should use the left art sequence.");
         Expect(rightWalk.Frames[0].Key.Contains("walk_slow_right"), "Right walks should use the right art sequence.");
+        Expect(leftChase.Frames.Count == 16, "The left chase clip should load 16 art frames.");
+        Expect(rightChase.Frames.Count == 16, "The right chase clip should load 16 art frames.");
+        Expect(leftChase.Frames[0].Key.Contains("play_chase_left"), "Left chases should use the left art sequence.");
+        Expect(rightChase.Frames[0].Key.Contains("play_chase_right"), "Right chases should use the right art sequence.");
+        Expect(File.Exists(catalog.YarnBellToyPath), "The yarn bell toy asset should load with the art catalog.");
     }
 
     private static void PersonalizedArtPackUsesLongHoldFrames()

@@ -1,4 +1,4 @@
-# My Cat V0.5 Playtest Guide
+# My Cat V0.6 Playtest Guide
 
 ## Who to invite
 
@@ -8,7 +8,7 @@
 
 ## Setup
 
-1. Extract `MyCat-v0.5-playtest-win-x64.zip`.
+1. Extract `MyCat-v0.6-playtest-win-x64.zip`.
 2. Run `Install-MyCat.cmd` to create desktop and Start Menu shortcuts.
 3. Start My Cat from the shortcut and leave it visible on the desktop.
 4. Tell the tester this is a prototype desktop companion, not a pet simulator.
@@ -25,9 +25,12 @@
 7. Record the same kind of observation three times in one time period and watch for a learning hint.
 8. Open behavior rhythm settings and adjust one time period.
 9. Turn on quiet mode, then turn it off again.
-10. Open About My Cat, the data folder, and the log folder from the tray.
-11. Confirm the shortcut, exe, and tray all use the My Cat icon.
-12. Leave it running while doing another desktop task for at least 30 minutes.
+10. Choose "和它玩一会儿" from the cat menu and move the yarn bell toy around.
+11. Let the cat catch the yarn bell once and watch the catch pose.
+12. Start another play session and right-click once to stop it early.
+13. Open About My Cat, the data folder, and the log folder from the tray.
+14. Confirm the shortcut, exe, and tray all use the My Cat icon.
+15. Leave it running while doing another desktop task for at least 30 minutes.
 
 ## What to watch
 
@@ -40,6 +43,8 @@
 - Whether the learned rhythm difference is noticeable without feeling mechanical.
 - Whether behavior rhythm settings are understandable enough for a first-time tester.
 - Whether quiet mode feels calmer rather than simply broken.
+- Whether the yarn bell chase feels playful without getting in the way.
+- Whether the catch pose and miss pose feel cute and readable.
 - Whether the cat interferes with taskbar or window operations.
 - Whether the app icon feels cute, clear, and consistent with the desktop cat.
 - Whether the log folder exists after startup and exit.
@@ -49,6 +54,7 @@
 - Tester can click, drag, record from both entrances, and exit from the tray.
 - Tester can find About, data folder, log folder, and behavior rhythm settings from the tray.
 - Tester describes at least one moment where the cat felt alive on the desktop.
+- Tester can start play, let the cat catch the toy, and right-click to stop a later play session.
 - Tester notices quiet mode making new active behaviors calmer.
 - Tester leaves it running instead of closing it immediately.
 

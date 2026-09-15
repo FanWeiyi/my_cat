@@ -26,6 +26,14 @@ public sealed record CatBehaviorOptions
 
     public TimeSpan MouseTrackDuration { get; init; } = TimeSpan.FromSeconds(3);
 
+    public TimeSpan PlayReadyDuration { get; init; } = TimeSpan.FromMilliseconds(1600);
+
+    public TimeSpan PlayChaseDuration { get; init; } = TimeSpan.FromSeconds(20);
+
+    public TimeSpan PlayCatchDuration { get; init; } = TimeSpan.FromMilliseconds(1440);
+
+    public TimeSpan PlayMissDuration { get; init; } = TimeSpan.FromMilliseconds(1920);
+
     public TimeSpan WindowLingerDuration { get; init; } = TimeSpan.FromSeconds(5);
 
     public TimeSpan WindowStartleDuration { get; init; } = TimeSpan.FromMilliseconds(650);

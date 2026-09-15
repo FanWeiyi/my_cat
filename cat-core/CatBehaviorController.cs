@@ -32,7 +32,14 @@ public sealed class CatBehaviorController
     {
         QuietMode = enabled;
 
-        if (enabled && Current?.State is CatState.Walk or CatState.MouseNotice or CatState.WindowLinger or CatState.TaskbarVisit)
+        if (enabled && Current?.State is CatState.Walk
+            or CatState.MouseNotice
+            or CatState.WindowLinger
+            or CatState.TaskbarVisit
+            or CatState.PlayReady
+            or CatState.PlayChase
+            or CatState.PlayCatch
+            or CatState.PlayMiss)
         {
             return SetState(CatState.Idle, now);
         }
@@ -42,6 +49,11 @@ public sealed class CatBehaviorController
 
     public CatActionTransition Pet(DateTimeOffset now)
     {
+        if (IsPlaying)
+        {
+            return Current!;
+        }
+
         _resumeAfterPet = Current?.State is CatState.Rest
             ? CatState.Rest
             : CatState.Idle;
@@ -93,6 +105,11 @@ public sealed class CatBehaviorController
 
     public CatActionTransition TrackMouse(DateTimeOffset now, CatActionId? actionId = null)
     {
+        if (IsPlaying)
+        {
+            return Current!;
+        }
+
         _resumeAfterReaction = CatState.Idle;
         return SetState(CatState.MouseTrack, now, actionId ?? CatActionId.MouseTrack);
     }
@@ -121,7 +138,15 @@ public sealed class CatBehaviorController
 
     public CatActionTransition? StartleFromWindow(DateTimeOffset now)
     {
-        if (Current?.State is CatState.DragLift or CatState.DragHold or CatState.DragDrop or CatState.PetReact or CatState.MouseTrack)
+        if (Current?.State is CatState.DragLift
+            or CatState.DragHold
+            or CatState.DragDrop
+            or CatState.PetReact
+            or CatState.MouseTrack
+            or CatState.PlayReady
+            or CatState.PlayChase
+            or CatState.PlayCatch
+            or CatState.PlayMiss)
         {
             return null;
         }
@@ -145,6 +170,35 @@ public sealed class CatBehaviorController
 
         _resumeAfterReaction = CatState.Idle;
         return SetState(CatState.TaskbarVisit, now, lie ? CatActionId.TaskbarLie : CatActionId.TaskbarSit);
+    }
+
+    public CatActionTransition? StartPlay(DateTimeOffset now)
+    {
+        if (QuietMode || Current?.State is CatState.DragLift or CatState.DragHold or CatState.DragDrop)
+        {
+            return null;
+        }
+
+        _resumeAfterReaction = CatState.Idle;
+        return SetState(CatState.PlayReady, now);
+    }
+
+    public CatActionTransition ChaseToy(DateTimeOffset now)
+    {
+        _resumeAfterReaction = CatState.Idle;
+        return SetState(CatState.PlayChase, now);
+    }
+
+    public CatActionTransition CatchToy(DateTimeOffset now)
+    {
+        _resumeAfterReaction = CatState.Idle;
+        return SetState(CatState.PlayCatch, now);
+    }
+
+    public CatActionTransition MissToy(DateTimeOffset now)
+    {
+        _resumeAfterReaction = CatState.Idle;
+        return SetState(CatState.PlayMiss, now);
     }
 
     public CatActionTransition ReactToObservation(CatEventType eventType, DateTimeOffset now)
@@ -184,6 +238,10 @@ public sealed class CatBehaviorController
             CatState.DragDrop => SetState(_resumeAfterReaction, now),
             CatState.MouseNotice => SetState(_resumeAfterReaction, now),
             CatState.MouseTrack => SetState(_resumeAfterReaction, now),
+            CatState.PlayReady => SetState(CatState.PlayChase, now),
+            CatState.PlayChase => SetState(CatState.PlayMiss, now),
+            CatState.PlayCatch => SetState(CatState.Idle, now),
+            CatState.PlayMiss => SetState(CatState.Idle, now),
             CatState.WindowLinger => SetState(_resumeAfterReaction, now),
             CatState.WindowStartle => SetState(CatState.WindowAvoid, now),
             CatState.WindowAvoid => SetState(_resumeAfterReaction, now),
@@ -250,6 +308,10 @@ public sealed class CatBehaviorController
             CatState.DragDrop => (CatActionId.DragDrop, _options.DragDropDuration),
             CatState.MouseNotice => (CatActionId.MouseNotice, _options.MouseNoticeDuration),
             CatState.MouseTrack => (overrideActionId ?? CatActionId.MouseTrack, _options.MouseTrackDuration),
+            CatState.PlayReady => (CatActionId.PlayReady, _options.PlayReadyDuration),
+            CatState.PlayChase => (CatActionId.PlayChase, _options.PlayChaseDuration),
+            CatState.PlayCatch => (CatActionId.PlayCatch, _options.PlayCatchDuration),
+            CatState.PlayMiss => (CatActionId.PlayMiss, _options.PlayMissDuration),
             CatState.WindowLinger => (CatActionId.WindowLinger, _options.WindowLingerDuration),
             CatState.WindowStartle => (CatActionId.WindowStartle, _options.WindowStartleDuration),
             CatState.WindowAvoid => (CatActionId.WindowAvoid, _options.WindowAvoidDuration),
@@ -261,4 +323,10 @@ public sealed class CatBehaviorController
         Current = new CatActionTransition(state, actionId, now, now + duration);
         return Current;
     }
+
+    private bool IsPlaying =>
+        Current?.State is CatState.PlayReady
+            or CatState.PlayChase
+            or CatState.PlayCatch
+            or CatState.PlayMiss;
 }

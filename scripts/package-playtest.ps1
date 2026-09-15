@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [string]$Runtime = "win-x64",
-    [string]$Version = "v0.5",
+    [string]$Version = "v0.6",
     [switch]$FrameworkDependent
 )
 
@@ -54,6 +54,16 @@ $sourceFrameCount = @(Get-ChildItem -LiteralPath $sourceArtRoot -Recurse -Filter
 $publishedFrameCount = @(Get-ChildItem -LiteralPath $publishedArtRoot -Recurse -Filter "frame_*.png" -File).Count
 if ($publishedFrameCount -ne $sourceFrameCount) {
     throw "The playtest package has $publishedFrameCount art frames; expected $sourceFrameCount."
+}
+
+$sourceToy = Join-Path $workspace "cat-assets\toys\yarn_bell.png"
+$publishedToy = Join-Path $publishDir "toys\yarn_bell.png"
+if (-not (Test-Path -LiteralPath $sourceToy)) {
+    throw "The source yarn bell toy asset is missing."
+}
+
+if (-not (Test-Path -LiteralPath $publishedToy)) {
+    throw "The playtest package is missing toys\yarn_bell.png."
 }
 
 Copy-Item -Force (Join-Path $workspace "docs\playtest-runbook.txt") (Join-Path $publishDir "PLAYTEST.txt")
